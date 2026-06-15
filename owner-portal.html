@@ -658,6 +658,39 @@ function renderStats(){
       </table></div>`;
     el.appendChild(b5);
   }
+
+function switchTab(t){
+  ['week','stats'].forEach(x=>{
+    document.getElementById('pane-'+x).style.display=x===t?'':'none';
+    document.getElementById('tb-'+x).classList.toggle('on',x===t);
+  });
+  if(t==='stats') renderStats();
+}
+
+function exportData(){
+  const b=new Blob([JSON.stringify(weeks,null,2)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(b);
+  a.download='ads-'+today()+'.json';
+  a.click();
+}
+
+function importData(e){
+  const f=e.target.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=ev=>{
+    try{
+      const d=JSON.parse(ev.target.result);
+      if(Array.isArray(d)){weeks=d;cur=weeks[weeks.length-1].id;save();render();alert('Імпорт успішний!');}
+      else alert('Невірний формат');
+    }catch(err){alert('Помилка читання файлу');}
+  };
+  r.readAsText(f);e.target.value='';
+}
+
+function render(){renderPills();renderWeek();}
+
+init();
 }
 )();
 </script>
