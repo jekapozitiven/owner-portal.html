@@ -86,7 +86,7 @@ body{background:#F7F7F5;color:#111;font-family:'Inter',-apple-system,sans-serif;
 .ch-g{background:#E8F0FE;color:#1F6FEB;}
 .ch-p{background:#F3E8FE;color:#7C3AED;}
 .buyout-wrap{display:flex;align-items:center;gap:4px;background:#F7F7F5;border:1px solid #E5E5E3;border-radius:7px;padding:4px 8px;font-size:12px;color:#999;}
-.buyout-wrap input{background:0;border:0;color:#111;width:36px;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;outline:none;text-align:right;}
+.buyout-wrap input{background:0;border:0;color:#111;width:44px;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;outline:none;text-align:right;}
 .src-meta-row{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:#999;}
 .src-meta-row b{color:#111;font-family:'JetBrains Mono',monospace;font-weight:600;}
 .src-result{margin-left:auto;text-align:right;}
@@ -320,7 +320,9 @@ function renderWeek(){
     d.innerHTML=`<div class="src-head">
       <input class="src-name" value="${s.name}" onchange="ss(${s.id},'name',this.value)">
       <button class="ch-btn ch-${s.ch==="Google"?"g":"p"}" onclick="tch(${s.id})">${s.ch}</button>
-      <div class="buyout-wrap">Викуп<input type="number" value="${s.buyout}" min="0" max="100" oninput="ss(${s.id},'buyout',this.value)">%</div>
+      <div class="buyout-wrap">Викуп<input type="number" value="${s.buyout}" min="0" max="100" style="width:44px"
+  onblur="ss(${s.id},'buyout',this.value)"
+  onkeydown="if(event.key==='Enter'){ss(${s.id},'buyout',this.value);this.blur();}">%</div>
       <div class="src-meta-row">
         <span>Бюджет: <b>${fmt(s.S.budget)}</b></span>
         <span>Маржа: <b>${fmt(s.S.marg)}</b></span>
