@@ -311,9 +311,9 @@ function renderWeek(){
     const ps=pw?pw.srcs.find(x=>x.name===s.name&&x.ch===s.ch):null;
     const d=document.createElement("div");d.className="src-card";
     d.innerHTML=`<div class="src-head">
-      <input class="src-name" value="${s.name}" oninput="ss(${s.id},'name',this.value)">
+      <input class="src-name" value="${s.name}" onchange="ss(${s.id},'name',this.value)">
       <button class="ch-btn ch-${s.ch==="Google"?"g":"p"}" onclick="tch(${s.id})">${s.ch}</button>
-      <div class="buyout-wrap">Викуп<input type="number" value="${s.buyout}" min="0" max="100" oninput="ss(${s.id},'buyout',this.value)">%</div>
+      <div class="buyout-wrap">Викуп<input type="number" value="${s.buyout}" min="0" max="100" onchange="ss(${s.id},'buyout',this.value)">%</div>
       <div class="src-meta-row">
         <span>Маржа: <b>${fmt(s.S.marg)}</b></span>
         <span>Ср.маржа: <b>${fmt(s.avgM)}</b></span>
@@ -334,11 +334,11 @@ function renderWeek(){
         <th>Ціна заявки</th><th>Ціна апрув</th><th>Забрали</th><th>КЦ</th><th>Поверн.</th><th>Витрати</th><th>Чистими</th><th>ROAS</th><th></th>
       </tr></thead>
       <tbody>${s.camps.map(c=>`<tr class="tr">
-        <td><input class="ninp" value="${c.name}" oninput="sc(${s.id},${c.id},'name',this.value)"></td>
-        <td><input class="inp" style="width:66px" type="number" value="${c.leads||""}" placeholder="0" onfocus="this.select()" oninput="sc(${s.id},${c.id},'leads',this.value)"></td>
-        <td><input class="inp" style="width:76px" type="number" value="${c.orders||""}" placeholder="0" onfocus="this.select()" oninput="sc(${s.id},${c.id},'orders',this.value)"></td>
-        <td><input class="inp" style="width:86px" type="number" value="${c.budget||""}" placeholder="0" onfocus="this.select()" oninput="sc(${s.id},${c.id},'budget',this.value)"></td>
-        <td><input class="inp" style="width:86px" type="number" value="${c.margin||""}" placeholder="0" onfocus="this.select()" oninput="sc(${s.id},${c.id},'margin',this.value)"></td>
+        <td><input class="ninp" value="${c.name}" onchange="sc(${s.id},${c.id},'name',this.value)"></td>
+        <td><input class="inp" style="width:66px" type="number" value="${c.leads||''}" placeholder="0" onfocus="this.select()" onchange="sc(${s.id},${c.id},'leads',this.value)"></td>
+        <td><input class="inp" style="width:76px" type="number" value="${c.orders||''}" placeholder="0" onfocus="this.select()" onchange="sc(${s.id},${c.id},'orders',this.value)"></td>
+        <td><input class="inp" style="width:86px" type="number" value="${c.budget||''}" placeholder="0" onfocus="this.select()" onchange="sc(${s.id},${c.id},'budget',this.value)"></td>
+        <td><input class="inp" style="width:86px" type="number" value="${c.margin||''}" placeholder="0" onfocus="this.select()" onchange="sc(${s.id},${c.id},'margin',this.value)"></td>
         <td class="r">${fmt(c.cpl)}</td><td class="r">${fmt(c.cpa)}</td><td class="r">${fmt(c.v)}</td>
         <td class="r" style="color:#999">${fmt(c.kc_c)}</td><td class="r" style="color:#999">${fmt(c.ref_c)}</td>
         <td class="r" style="color:#999">${fmt(c.cost_c)}</td>
