@@ -403,157 +403,263 @@ function renderPills(){document.getElementById("pills").innerHTML=weeks.map(w=>`
 function pw(id){cur=id;render();}
 
 function renderStats(){
-  const allK=[...new Set(weeks.flatMap(w=>w.sources.map(s=>s.name+"|"+s.ch)))];
-  if(!window._ss)window._ss=new Set(allK);
-  const sel=window._ss;
-  const rows=weeks.map(w=>{const c=calc(w);return{id:w.id,label:wlbl(w),month:w.start?w.start.slice(0,7):"",srcs:c.srcs};});
-  const byM={};
-  rows.forEach(r=>{if(!r.month)return;const m=byM[r.month]||(byM[r.month]={month:r.month,budget:0,marg:0,cost:0,net:0,weeks:0});r.srcs.filter(s=>sel.has(s.name+"|"+s.ch)).forEach(s=>{m.budget+=s.S.budget;m.marg+=s.S.marg;m.cost+=s.S.cost;m.net+=s.S.net;});m.weeks++;});
-  Object.values(byM).forEach(m=>{m.roas=m.budget?m.marg/m.budget:0;m.roi=m.cost?m.net/m.cost:0;});
-  const months=Object.values(byM);
-  const th=`<thead><tr style="background:#F7F7F5"><th style="text-align:left;padding:8px 14px">Період</th><th style="padding:8px;text-align:right;font-size:10px;color:#999;text-transform:uppercase">Бюджет</th><th style="padding:8px;text-align:right;font-size:10px;color:#999;text-transform:uppercase">Маржа</th><th style="padding:8px;text-align:right;font-size:10px;color:#999;text-transform:uppercase">Чистими</th><th style="padding:8px;text-align:right;font-size:10px;color:#999;text-transform:uppercase">Δ</th><th style="padding:8px;text-align:right;font-size:10px;color:#999;text-transform:uppercase">ROAS</th><th style="padding:8px;text-align:right;font-size:10px;color:#999;text-transform:uppercase">ROI</th></tr></thead>`;
-  const prows=data=>data.map((r,i)=>{const net=r.net||0,pv=i>0?data[i-1]:null,pn=pv?pv.net||0:null,roas=r.roas||0,roi=r.roi||0,lbl=r.label||mlbl(r.month);return`<tr><td style="text-align:left;padding:8px 14px;font-weight:500">${lbl}</td><td class="r" style="padding:8px">${fmt(r.budget||0)}</td><td class="r" style="padding:8px">${fmt(r.marg||0)}</td><td class="r" style="padding:8px;font-weight:700;color:${nc(net)}">${fmt(net)}</td><td class="r" style="padding:8px">${pn!==null?aw(net,pn):"—"}</td><td class="r" style="padding:8px;color:${rc(roas)}">${fX(roas)}</td><td class="r" style="padding:8px;color:${roi>=0?"#0E7C5A":"#C2453B"}">${fP(roi)}</td></tr>`;}).join("");
-  const wd=rows.map(r=>{const f=r.srcs.filter(s=>sel.has(s.name+"|"+s.ch));const T=f.reduce((a,s)=>({budget:a.budget+s.S.budget,marg:a.marg+s.S.marg,cost:a.cost+s.S.cost,net:a.net+s.S.net}),{budget:0,marg:0,cost:0,net:0});return{...r,...T,roas:T.budget?T.marg/T.budget:0,roi:T.cost?T.net/T.cost:0};});
-  document.getElementById("stats").innerHTML=`
-    <div style="margin-bottom:14px"><div style="font-size:11px;color:#999;font-weight:600;margin-bottom:8px">Показувати джерела:</div>
-    <div class="sf">${allK.map(k=>`<button class="fchip${sel.has(k)?" on":""}" onclick="ts('${k}')">${k.replace("|"," · ")}</button>`).join("")}</div></div>
-    <div class="sb"><div class="sb-t">📅 Загальна — щотижнево</div><div class="scroll"><table>${th}<tbody>${prows(wd)}</tbody></table></div></div>
-    <div class="sb"><div class="sb-t">📆 Загальна — щомісяця</div><div class="scroll"><table>${th}<tbody>${prows(months)}</tbody></table></div></div>
-    ${allK.filter(k=>sel.has(k)).map(k=>{const[name,ch]=k.split("|");const sr=rows.map((r,i)=>{const s=r.srcs.find(x=>x.name===name&&x.ch===ch)||{S:{budget:0,marg:0,cost:0,net:0},roas:0,roi:0};const p=i>0?rows[i-1].srcs.find(x=>x.name===name&&x.ch===ch):null;return`<tr><td style="text-align:left;padding:8px 14px;font-weight:500">${r.label}</td><td class="r" style="padding:8px">${fmt(s.S.budget)}</td><td class="r" style="padding:8px">${fmt(s.S.marg)}</td><td class="r" style="padding:8px;font-weight:700;color:${nc(s.S.net)}">${fmt(s.S.net)}</td><td class="r" style="padding:8px">${p?aw(s.S.net,p.S.net):"—"}</td><td class="r" style="padding:8px;color:${rc(s.roas)}">${fX(s.roas)}</td><td class="r" style="padding:8px;color:${s.S.net>=0?"#0E7C5A":"#C2453B"}">${fP(s.roi)}</td></tr>`;}).join("");return`<div class="sb"><div class="sb-t">${name} <span class="ch-btn ch-${ch==="Google"?"g":"p"}" style="cursor:default">${ch}</span></div><div class="scroll"><table>${th}<tbody>${sr}</tbody></table></div></div>`;}).join("")}
-    <p class="hint">▲ краще, ▼ гірше відносно попереднього тижня.</p>`;
-}
-function ts(k){if(!window._ss)window._ss=new Set();window._ss.has(k)?window._ss.delete(k):window._ss.add(k);renderStats();}
-
-function switchTab(t){["week","stats"].forEach(x=>{document.getElementById("pane-"+x).style.display=x===t?"":"none";document.getElementById("tb-"+x).classList.toggle("on",x===t);});if(t==="stats")renderStats();}
-
-function exportData(){const b=new Blob([JSON.stringify(weeks,null,2)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download=`ads-${today()}.json`;a.click();}
-function importData(e){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const d=JSON.parse(ev.target.result);if(Array.isArray(d)){weeks=d;cur=weeks[weeks.length-1].id;save();render();alert("Імпорт успішний!");}else alert("Невірний формат");}catch(err){alert("Помилка читання файлу");}};r.readAsText(f);e.target.value="";}
-
-function render(){renderPills();renderWeek();}
-init();
-</script>
-
-  <!-- ═══ FIREBASE ════════════════════════════════════════════ -->
-  <!-- 
-    ЯК ПІДКЛЮЧИТИ FIREBASE (5 хвилин):
-    1. Зайди на console.firebase.google.com
-    2. "Add project" → дай назву → Create
-    3. Зліва "Realtime Database" → Create database → Start in test mode
-    4. Натисни шестерню (Project settings) → скопіюй firebaseConfig
-    5. Встав свої значення нижче замість "YOUR_..."
-    6. Все — дані синхронізуються між усіма пристроями автоматично
-  -->
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-    import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
-
-    // ▼▼▼ ВСТАВ СВІЙ FIREBASE CONFIG ТУТ ▼▼▼
-    const firebaseConfig = {
-      apiKey: "AIzaSyAKBZifq8tmsJ75DL1Y6QiAY942TFcZuKk",
-      authDomain: "owner-portal-1649e.firebaseapp.com",
-      databaseURL: "https://owner-portal-1649e-default-rtdb.europe-west1.firebasedatabase.app",
-      projectId: "owner-portal-1649e",
-      storageBucket: "owner-portal-1649e.firebasestorage.app",
-      messagingSenderId: "709509647711",
-      appId: "1:709509647711:web:a5ce9db17a0751aa67baea"
+  // Збираємо всі тижні з розрахунками
+  const allWeeks = weeks.map(w=>{
+    const c = calc(w);
+    return {
+      id: w.id, label: wLabel(w.start, w.end),
+      month: w.start ? w.start.slice(0,7) : '',
+      budget: c.T.budget, marg: c.T.marg, net: c.T.net,
+      cost: c.T.cost, kc: c.T.kc, ref: c.T.ref, v: c.T.v,
+      roas: c.roas, roi: c.roi,
+      srcs: c.srcs
     };
-    // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
+  });
 
-    const CONFIGURED = !firebaseConfig.apiKey.startsWith("YOUR_");
+  // Всі унікальні джерела
+  const allSrcKeys = [...new Set(weeks.flatMap(w=>w.sources.map(s=>s.name+'|'+s.ch)))];
 
-    if (CONFIGURED) {
-      const app = initializeApp(firebaseConfig);
-      const db = getDatabase(app);
-      const dataRef = ref(db, "ads-tracker/weeks");
+  // Підсумки по джерелах за всі тижні
+  const srcTotals = {};
+  allSrcKeys.forEach(k=>{
+    srcTotals[k] = {key:k, name:k.split('|')[0], ch:k.split('|')[1],
+      budget:0, marg:0, net:0, cost:0, weeks:0};
+  });
+  allWeeks.forEach(w=>{
+    w.srcs.forEach(s=>{
+      const k = s.name+'|'+s.ch;
+      if(srcTotals[k]){
+        srcTotals[k].budget += s.S.budget;
+        srcTotals[k].marg += s.S.marg;
+        srcTotals[k].net += s.S.net;
+        srcTotals[k].cost += s.S.cost;
+        srcTotals[k].weeks++;
+      }
+    });
+  });
+  const srcList = Object.values(srcTotals)
+    .map(s=>({...s, roas:s.budget?s.marg/s.budget:0, roi:s.cost?s.net/s.cost:0}))
+    .sort((a,b)=>b.net-a.net);
 
-      let _fbLoaded = false;
-      let _pendingSave = null;
+  // Місячні підсумки
+  const byM = {};
+  allWeeks.forEach(w=>{
+    if(!w.month) return;
+    const m = byM[w.month] || (byM[w.month]={month:w.month,budget:0,marg:0,net:0,cost:0,weeks:0});
+    m.budget+=w.budget; m.marg+=w.marg; m.net+=w.net; m.cost+=w.cost; m.weeks++;
+  });
+  const months = Object.values(byM).map(m=>({...m,roas:m.budget?m.marg/m.budget:0,roi:m.cost?m.net/m.cost:0}));
 
-      // Читаємо дані з Firebase при старті
-      onValue(dataRef, (snapshot) => {
-        const val = snapshot.val();
-        if (val && Array.isArray(val) && !_fbLoaded) {
-          _fbLoaded = true;
-          weeks = val;
-          cur = weeks[weeks.length - 1].id;
-          // Якщо застосунок вже відкритий — перемалюємо
-          if (document.getElementById("app").style.display !== "none") render();
-        } else {
-          _fbLoaded = true;
-        }
+  // Топ кампаній за всі тижні
+  const campMap = {};
+  weeks.forEach(w=>{
+    const c = calc(w);
+    c.srcs.forEach(s=>{
+      s.camps.forEach(camp=>{
+        const k = s.name+'|'+camp.name;
+        if(!campMap[k]) campMap[k] = {src:s.name, name:camp.name, budget:0, net:0, roas_sum:0, weeks:0};
+        campMap[k].budget += camp.budget||0;
+        campMap[k].net += camp.net||0;
+        campMap[k].weeks++;
       });
-
-      // Перевизначаємо функцію save щоб писала у Firebase
-      const _origSave = window.save;
-      window.save = function() {
-        // Локально
-        LS.set("bsown:weeks", weeks);
-        // У Firebase
-        set(dataRef, weeks).catch(e => console.warn("Firebase save error:", e));
-      };
-
-      // Статус синхронізації
-      const bar = document.querySelector(".app-bar");
-      if (bar) {
-        const dot = document.createElement("span");
-        dot.style.cssText = "font-size:11px;color:#0E7C5A;font-weight:600;background:#E6F5EE;padding:4px 10px;border-radius:999px;border:1px solid #C3E8D8;";
-        dot.textContent = "🔄 Firebase синхронізація";
-        bar.appendChild(dot);
-      }
-
-      console.log("✅ Firebase підключено — дані синхронізуються між пристроями");
-    } else {
-      console.warn("⚠️ Firebase не налаштований — дані зберігаються тільки локально. Встав свій firebaseConfig в owner-portal.html");
-      // Показуємо підказку
-      const bar = document.querySelector(".app-bar");
-      if (bar) {
-        const dot = document.createElement("span");
-        dot.style.cssText = "font-size:11px;color:#CA8A04;font-weight:600;background:#FEF9C3;padding:4px 10px;border-radius:999px;border:1px solid #FDE68A;cursor:pointer;";
-        dot.textContent = "⚠️ Firebase не налаштований";
-        dot.title = "Відкрий файл і встав свій firebaseConfig для синхронізації між пристроями";
-        bar.appendChild(dot);
-      }
-    }
-  </script>
-
-<div id="global-tip"></div>
-<script>
-(function(){
-  var TIPS = {
-    'cpl':'<b>Ціна заявки</b><br>Бюджет ÷ Заявки<br><br>Скільки коштує залучити одного потенційного клієнта.',
-    'cpa':'<b>Ціна апрув</b><br>Бюджет ÷ Оброблені<br><br>Скільки коштує один оброблений замовлення.',
-    'took':'<b>Забрали</b><br>Оброблені × Викуп %<br><br>Кількість клієнтів що реально забрали посилку.',
-    'kc':'<b>КЦ — Колл-центр</b><br>Маржа × КЦ %<br><br>Витрати на менеджерів.',
-    'ref':'<b>Повернення</b><br>(Оброблені − Забрали) × Ціна відмови<br><br>Витрати за посилки, які клієнт не забрав.',
-    'costs':'<b>Витрати</b><br>Бюджет + КЦ + Повернення<br><br>Всі витрати по кампанії.',
-    'net':'<b>Чистий прибуток</b><br>Маржа − Витрати<br><br>Залишається після реклами. Без ставок і постійних витрат.',
-    'roas':'<b>ROAS</b> — Return On Ad Spend<br>Маржа ÷ Бюджет<br><br>₴ маржі на кожну ₴ реклами.<br><br>✅ >1.5x добре &nbsp; ⚠️ 1–1.5x тримати &nbsp; 🔴 <1x збиток',
-    'roi':'<b>ROI</b> — Return On Investment<br>Чистими ÷ Витрати × 100%<br><br>% прибутку від вкладених грошей.<br><br>✅ >30% добре &nbsp; ⚠️ 0–30% середньо &nbsp; 🔴 <0% збиток'
-  };
-  var tip = document.getElementById('global-tip');
-  document.addEventListener('mouseover', function(e){
-    var el = e.target.closest('[data-tip]');
-    if(!el) return;
-    var key = el.getAttribute('data-tip');
-    if(!TIPS[key]) return;
-    tip.innerHTML = '💡 ' + TIPS[key];
-    tip.style.display = 'block';
-    move(e);
+    });
   });
-  document.addEventListener('mousemove', function(e){
-    if(tip.style.display==='block') move(e);
-  });
-  document.addEventListener('mouseout', function(e){
-    if(e.target.closest('[data-tip]')) tip.style.display='none';
-  });
-  function move(e){
-    var w=240, h=tip.offsetHeight, x=e.clientX-w/2, y=e.clientY-h-16;
-    if(x<8) x=8;
-    if(x+w>window.innerWidth-8) x=window.innerWidth-w-8;
-    if(y<8) y=e.clientY+16;
-    tip.style.left=x+'px'; tip.style.top=y+'px';
+  const topCamps = Object.values(campMap)
+    .filter(c=>c.budget>0)
+    .map(c=>({...c, roas:c.budget?((c.net+c.budget)/c.budget):0}))
+    .sort((a,b)=>b.net-a.net)
+    .slice(0,10);
+
+  // Загальні підсумки
+  const totalNet = allWeeks.reduce((a,w)=>a+w.net,0);
+  const totalBudget = allWeeks.reduce((a,w)=>a+w.budget,0);
+  const totalMarg = allWeeks.reduce((a,w)=>a+w.marg,0);
+  const totalCost = allWeeks.reduce((a,w)=>a+w.cost,0);
+  const bestWeek = allWeeks.reduce((a,w)=>w.net>a.net?w:a, allWeeks[0]||{net:0,label:'—'});
+  const avgNet = allWeeks.length ? totalNet/allWeeks.length : 0;
+
+  // Максимум для графіка
+  const maxAbsNet = Math.max(1, ...allWeeks.map(w=>Math.abs(w.net)));
+
+  const el = document.getElementById('stats');
+  el.innerHTML = '';
+
+  // ── Блок 1: Огляд ──────────────────────────────────────
+  const b1 = document.createElement('div');
+  b1.innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:20px;">
+      <div class="kpi"><div class="kpi-lbl">Чистий прибуток (всього)</div><div class="kpi-val" style="color:${nc(totalNet)}">${fmt(totalNet)} ₴</div><div class="kpi-sub">за ${allWeeks.length} тижн.</div></div>
+      <div class="kpi"><div class="kpi-lbl">Середній за тиждень</div><div class="kpi-val" style="color:${nc(avgNet)}">${fmt(avgNet)} ₴</div></div>
+      <div class="kpi"><div class="kpi-lbl">Найкращий тиждень</div><div class="kpi-val" style="color:var(--green);font-size:16px">${fmt(bestWeek.net)} ₴</div><div class="kpi-sub">${bestWeek.label||'—'}</div></div>
+      <div class="kpi"><div class="kpi-lbl">Загальний ROAS</div><div class="kpi-val" style="color:${rc(totalBudget?totalMarg/totalBudget:0)}">${fX(totalBudget?totalMarg/totalBudget:0)}</div></div>
+    </div>
+
+    <!-- Графік -->
+    <div class="sb" style="margin-bottom:20px;padding:20px;">
+      <div style="font-size:13px;font-weight:700;margin-bottom:16px">📈 Чистий прибуток по тижнях</div>
+      <div style="display:flex;align-items:flex-end;gap:6px;height:120px;padding-bottom:8px;border-bottom:1px solid #F0F0EE;">
+        ${allWeeks.map((w,i)=>{
+          const pct = Math.abs(w.net)/maxAbsNet*100;
+          const pos = w.net>=0;
+          const prev = i>0?allWeeks[i-1].net:null;
+          const arr = prev!==null?(w.net>prev?'▲':'▼'):'';
+          const ac = prev!==null?(w.net>prev?'#0E7C5A':'#C2453B'):'#999';
+          return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0">
+            <div style="font-size:9px;font-weight:700;color:${ac}">${arr}</div>
+            <div style="width:100%;background:${pos?'#0E7C5A':'#C2453B'};border-radius:4px 4px 0 0;height:${pct}%;opacity:.85;min-height:2px"></div>
+            <div style="font-size:9px;color:#999;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;text-align:center">${w.label}</div>
+          </div>`;
+        }).join('')}
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-top:8px">
+        ${allWeeks.map(w=>`<div style="flex:1;text-align:center;font-size:9px;font-family:'JetBrains Mono',monospace;font-weight:600;color:${nc(w.net)}">${fmt(w.net)}</div>`).join('')}
+      </div>
+    </div>`;
+  el.appendChild(b1);
+
+  // ── Блок 2: По тижнях ──────────────────────────────────
+  const b2 = document.createElement('div');
+  b2.className = 'sb';
+  b2.style.marginBottom = '16px';
+  b2.innerHTML = `
+    <div class="sb-t">📅 По тижнях</div>
+    <div class="scroll"><table>
+      <thead><tr style="background:#F7F7F5">
+        <th style="text-align:left;padding:8px 14px">Тиждень</th>
+        <th style="padding:8px;text-align:right;font-size:10px;color:#999;text-transform:uppercase">Бюджет</th>
+        <th style="padding:8px;text-align:right;font-size:10px;color:#999;text-transform:uppercase">Маржа</th>
+        <th style="padding:8px;text-align:right;font-size:10px;color:#999;text-transform:uppercase">Витрати</th>
+        <th style="padding:8px;text-align:right;font-size:10px;color:#999;text-transform:uppercase">Чистими</th>
+        <th style="padding:8px;text-align:right;font-size:10px;color:#999;text-transform:uppercase">Δ</th>
+        <th style="padding:8px;text-align:right;font-size:10px;color:#999;text-transform:uppercase">ROAS</th>
+        <th style="padding:8px;text-align:right;font-size:10px;color:#999;text-transform:uppercase">ROI</th>
+      </tr></thead>
+      <tbody>
+        ${allWeeks.map((w,i)=>{
+          const prev = i>0?allWeeks[i-1]:null;
+          const d = prev?w.net-prev.net:null;
+          const dHtml = d!==null?`<span style="font-size:11px;font-weight:700;color:${d>=0?'#0E7C5A':'#C2453B'}">${d>=0?'▲':'▼'} ${fmt(Math.abs(d))}</span>`:'—';
+          return `<tr>
+            <td style="text-align:left;padding:8px 14px;font-weight:600">${w.label}</td>
+            <td style="text-align:right;padding:8px;font-family:'JetBrains Mono',monospace">${fmt(w.budget)}</td>
+            <td style="text-align:right;padding:8px;font-family:'JetBrains Mono',monospace">${fmt(w.marg)}</td>
+            <td style="text-align:right;padding:8px;font-family:'JetBrains Mono',monospace;color:#999">${fmt(w.cost)}</td>
+            <td style="text-align:right;padding:8px;font-family:'JetBrains Mono',monospace;font-weight:700;color:${nc(w.net)}">${fmt(w.net)}</td>
+            <td style="text-align:right;padding:8px">${dHtml}</td>
+            <td style="text-align:right;padding:8px;font-family:'JetBrains Mono',monospace;color:${rc(w.roas)}">${fX(w.roas)}</td>
+            <td style="text-align:right;padding:8px;font-family:'JetBrains Mono',monospace;color:${w.roi>=0?'#0E7C5A':'#C2453B'}">${fP(w.roi)}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+      <tfoot><tr style="font-weight:700;background:#F7F7F5">
+        <td style="text-align:left;padding:8px 14px">Разом</td>
+        <td style="text-align:right;padding:8px;font-family:'JetBrains Mono',monospace">${fmt(totalBudget)}</td>
+        <td style="text-align:right;padding:8px;font-family:'JetBrains Mono',monospace">${fmt(totalMarg)}</td>
+        <td style="text-align:right;padding:8px;font-family:'JetBrains Mono',monospace;color:#999">${fmt(totalCost)}</td>
+        <td style="text-align:right;padding:8px;font-family:'JetBrains Mono',monospace;color:${nc(totalNet)}">${fmt(totalNet)}</td>
+        <td></td>
+        <td style="text-align:right;padding:8px;font-family:'JetBrains Mono',monospace;color:${rc(totalBudget?totalMarg/totalBudget:0)}">${fX(totalBudget?totalMarg/totalBudget:0)}</td>
+        <td style="text-align:right;padding:8px;font-family:'JetBrains Mono',monospace;color:${totalNet>=0?'#0E7C5A':'#C2453B'}">${fP(totalCost?totalNet/totalCost:0)}</td>
+      </tr></tfoot>
+    </table></div>`;
+  el.appendChild(b2);
+
+  // ── Блок 3: По джерелах ────────────────────────────────
+  const b3 = document.createElement('div');
+  b3.style.marginBottom = '16px';
+  b3.innerHTML = `<div style="font-size:13px;font-weight:700;margin-bottom:10px">🏆 Рейтинг джерел (за весь час)</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px">
+      ${srcList.map((s,i)=>`
+        <div class="kpi" style="border-left:3px solid ${s.net>=0?'#0E7C5A':'#C2453B'}">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+            <span style="font-size:18px;font-weight:800;color:#DDD">#${i+1}</span>
+            <span style="font-weight:700;font-size:14px">${s.name}</span>
+            <span class="ch-btn ch-${s.ch==='Google'?'g':'p'}" style="cursor:default">${s.ch}</span>
+          </div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:700;color:${nc(s.net)}">${fmt(s.net)} ₴</div>
+          <div style="font-size:11px;color:#999;margin-top:6px;display:flex;gap:10px">
+            <span>Бюджет: <b style="color:#111">${fmt(s.budget)}</b></span>
+            <span>ROAS: <b style="color:${rc(s.roas)}">${fX(s.roas)}</b></span>
+            <span>ROI: <b style="color:${s.roi>=0?'#0E7C5A':'#C2453B'}">${fP(s.roi)}</b></span>
+          </div>
+        </div>`).join('')}
+    </div>`;
+  el.appendChild(b3);
+
+  // ── Блок 4: По місяцях ─────────────────────────────────
+  if(months.length > 0){
+    const b4 = document.createElement('div');
+    b4.className = 'sb';
+    b4.style.marginBottom = '16px';
+    b4.style.marginTop = '16px';
+    b4.innerHTML = `
+      <div class="sb-t">📆 По місяцях</div>
+      <div class="scroll"><table>
+        <thead><tr style="background:#F7F7F5">
+          <th style="text-align:left;padding:8px 14px">Місяць</th>
+          <th style="padding:8px;text-align:right;font-size:10px;color:#999;text-transform:uppercase">Тижнів</th>
+          <th style="padding:8px;text-align:right;font-size:10px;color:#999;text-transform:uppercase">Бюджет</th>
+          <th style="padding:8px;text-align:right;font-size:10px;color:#999;text-transform:uppercase">Маржа</th>
+          <th style="padding:8px;text-align:right;font-size:10px;color:#999;text-transform:uppercase">Чистими</th>
+          <th style="padding:8px;text-align:right;font-size:10px;color:#999;text-transform:uppercase">Δ</th>
+          <th style="padding:8px;text-align:right;font-size:10px;color:#999;text-transform:uppercase">ROAS</th>
+          <th style="padding:8px;text-align:right;font-size:10px;color:#999;text-transform:uppercase">ROI</th>
+        </tr></thead>
+        <tbody>
+          ${months.map((m,i)=>{
+            const prev = i>0?months[i-1]:null;
+            const d = prev?m.net-prev.net:null;
+            const dHtml = d!==null?`<span style="font-size:11px;font-weight:700;color:${d>=0?'#0E7C5A':'#C2453B'}">${d>=0?'▲':'▼'} ${fmt(Math.abs(d))}</span>`:'—';
+            const mn=["Січень","Лютий","Березень","Квітень","Травень","Червень","Липень","Серпень","Вересень","Жовтень","Листопад","Грудень"];
+            const[y,mo]=m.month.split('-').map(Number);
+            return `<tr>
+              <td style="text-align:left;padding:8px 14px;font-weight:600">${mn[mo-1]} ${y}</td>
+              <td style="text-align:right;padding:8px;color:#999">${m.weeks}</td>
+              <td style="text-align:right;padding:8px;font-family:'JetBrains Mono',monospace">${fmt(m.budget)}</td>
+              <td style="text-align:right;padding:8px;font-family:'JetBrains Mono',monospace">${fmt(m.marg)}</td>
+              <td style="text-align:right;padding:8px;font-family:'JetBrains Mono',monospace;font-weight:700;color:${nc(m.net)}">${fmt(m.net)}</td>
+              <td style="text-align:right;padding:8px">${dHtml}</td>
+              <td style="text-align:right;padding:8px;font-family:'JetBrains Mono',monospace;color:${rc(m.roas)}">${fX(m.roas)}</td>
+              <td style="text-align:right;padding:8px;font-family:'JetBrains Mono',monospace;color:${m.roi>=0?'#0E7C5A':'#C2453B'}">${fP(m.roi)}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table></div>`;
+    el.appendChild(b4);
   }
-})();
+
+  // ── Блок 5: Топ кампаній ───────────────────────────────
+  if(topCamps.length > 0){
+    const b5 = document.createElement('div');
+    b5.className = 'sb';
+    b5.innerHTML = `
+      <div class="sb-t">🔥 Топ кампаній за весь час</div>
+      <div class="scroll"><table>
+        <thead><tr style="background:#F7F7F5">
+          <th style="text-align:left;padding:8px 14px">#</th>
+          <th style="text-align:left;padding:8px">Кампанія</th>
+          <th style="text-align:left;padding:8px">Джерело</th>
+          <th style="padding:8px;text-align:right;font-size:10px;color:#999;text-transform:uppercase">Бюджет</th>
+          <th style="padding:8px;text-align:right;font-size:10px;color:#999;text-transform:uppercase">Чистими</th>
+          <th style="padding:8px;text-align:right;font-size:10px;color:#999;text-transform:uppercase">ROAS</th>
+          <th style="padding:8px;text-align:right;font-size:10px;color:#999;text-transform:uppercase">Тижнів</th>
+        </tr></thead>
+        <tbody>
+          ${topCamps.map((c,i)=>`<tr>
+            <td style="padding:8px 14px;font-weight:800;color:#DDD">#${i+1}</td>
+            <td style="padding:8px;font-weight:600">${c.name}</td>
+            <td style="padding:8px;font-size:12px;color:#999">${c.src}</td>
+            <td style="text-align:right;padding:8px;font-family:'JetBrains Mono',monospace">${fmt(c.budget)}</td>
+            <td style="text-align:right;padding:8px;font-family:'JetBrains Mono',monospace;font-weight:700;color:${nc(c.net)}">${fmt(c.net)}</td>
+            <td style="text-align:right;padding:8px;font-family:'JetBrains Mono',monospace;color:${rc(c.roas)}">${fX(c.roas)}</td>
+            <td style="text-align:right;padding:8px;color:#999">${c.weeks}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table></div>`;
+    el.appendChild(b5);
+  }
+}
+)();
 </script>
 </body>
 </html>
