@@ -229,7 +229,8 @@ const fmt=n=>(!n&&n!==0)?"—":Math.round(n).toLocaleString("uk-UA");
 const fX=n=>isNaN(n)||!isFinite(n)?"—":n.toFixed(2)+"x";
 const fP=n=>isNaN(n)||!isFinite(n)?"—":Math.round(n*100)+"%";
 const nc=v=>v<=5000?"#C2453B":v<=7000?"#F97316":v<=12000?"#CA8A04":"#0E7C5A";
-const rc=v=>v>=1.5?"#0E7C5A":v>=1?"#CA8A04":"#C2453B";
+const rc=v=>v>=2.5?"#0E7C5A":v>=1.7?"#CA8A04":v>=1.3?"#F97316":"#C2453B";
+const roic=v=>v>=0.65?"#0E7C5A":v>=0.55?"#CA8A04":v>=0.45?"#F97316":"#C2453B";
 const aw=(c,p,x)=>{if(p===null||p===undefined)return"";const d=c-p,u=d>=0,col=u?"#0E7C5A":"#C2453B";return`<span class="aw" style="color:${col}">${u?"▲":"▼"} ${x?fX(Math.abs(d)):fmt(Math.abs(d))}</span>`;}
 
 function calc(w){
@@ -338,7 +339,7 @@ function renderWeek(){
   document.getElementById("kpis").innerHTML=`
     <div class="kpi"><div class="kpi-lbl">Чистий прибуток</div><div class="kpi-val" style="color:${nc(c.T.net)}">${fmt(c.T.net)} ₴${aw(c.T.net,pw?pw.T.net:null)}</div><div class="kpi-sub">до ставок і постійних витрат</div></div>
     <div class="kpi"><div class="kpi-lbl">ROAS</div><div class="kpi-val" style="color:${rc(c.roas)}">${fX(c.roas)}${aw(c.roas,pw?pw.roas:null,true)}</div><div class="kpi-sub">маржа×викуп / бюджет</div></div>
-    <div class="kpi"><div class="kpi-lbl">ROI</div><div class="kpi-val" style="color:${c.roi>=0?'#0E7C5A':'#C2453B'}">${fP(c.roi)}</div><div class="kpi-sub">чистий / витрати</div></div>
+    <div class="kpi"><div class="kpi-lbl">ROI</div><div class="kpi-val" style="color:${roic(c.roi)}">${fP(c.roi)}</div><div class="kpi-sub">чистий / витрати</div></div>
     <div class="kpi"><div class="kpi-lbl">Маржа (потенційна)</div><div class="kpi-val">${fmt(c.T.marg)} ₴</div><div class="kpi-sub">реальна: ${fmt(c.T.marg*0)} (з урах. викупу)</div></div>`;
 
   const sw=document.getElementById("srcs");sw.innerHTML="";
@@ -393,7 +394,7 @@ function renderWeek(){
         <td class="r" style="color:#999">${fmt(c.cost_c)}</td>
         <td class="r" style="font-weight:700;color:${nc(c.net)}">${fmt(c.net)}</td>
         <td class="r" style="color:${rc(c.roas)}">${fX(c.roas)}</td>
-        <td class="r" style="color:${c.roi>=0?'#0E7C5A':'#C2453B'}">${fP(c.roi)}</td>
+        <td class="r" style="color:${roic(c.roi)}">${fP(c.roi)}</td>
         <td><button class="del" onclick="dc(${s.id},${c.id})">✕</button></td>
       </tr>`).join('')}</tbody>
       <tfoot><tr>
@@ -406,7 +407,7 @@ function renderWeek(){
         <td class="r">${fmt(s.S.ref)}</td><td class="r">${fmt(s.S.cost)}</td>
         <td class="r" style="color:${nc(s.S.net)}">${fmt(s.S.net)}</td>
         <td class="r" style="color:${rc(s.roas)}">${fX(s.roas)}</td>
-        <td class="r" style="color:${s.roi>=0?'#0E7C5A':'#C2453B'}">${fP(s.roi)}</td>
+        <td class="r" style="color:${roic(s.roi)}">${fP(s.roi)}</td>
         <td></td>
       </tr></tfoot>
     </table></div>
@@ -468,17 +469,17 @@ function renderStats(){
   <div class="sb" style="margin-bottom:16px">
     <div class="sb-t">📅 По тижнях</div>
     <div class="scroll"><table>${thRow}<tbody>
-      ${allW.map((w,i)=>{const prev=i>0?allW[i-1]:null,d=prev?w.net-prev.net:null,dH=d!==null?`<span style="font-size:11px;font-weight:700;color:${d>=0?'#0E7C5A':'#C2453B'}">${d>=0?'▲':'▼'} ${fmt(Math.abs(d))}</span>`:'—';return`<tr><td style="text-align:left;padding:8px 14px;font-weight:600">${w.label}</td><td style="text-align:right;padding:8px;font-family:'JetBrains Mono',monospace">${fmt(w.budget)}</td><td style="text-align:right;padding:8px;font-family:'JetBrains Mono',monospace">${fmt(w.marg)}</td><td style="text-align:right;padding:8px;font-family:'JetBrains Mono',monospace;font-weight:700;color:${nc(w.net)}">${fmt(w.net)}</td><td style="text-align:right;padding:8px">${dH}</td><td style="text-align:right;padding:8px;font-family:'JetBrains Mono',monospace;color:${rc(w.roas)}">${fX(w.roas)}</td><td style="text-align:right;padding:8px;font-family:'JetBrains Mono',monospace;color:${w.roi>=0?'#0E7C5A':'#C2453B'}">${fP(w.roi)}</td></tr>`;})}</tbody>
+      ${allW.map((w,i)=>{const prev=i>0?allW[i-1]:null,d=prev?w.net-prev.net:null,dH=d!==null?`<span style="font-size:11px;font-weight:700;color:${d>=0?'#0E7C5A':'#C2453B'}">${d>=0?'▲':'▼'} ${fmt(Math.abs(d))}</span>`:'—';return`<tr><td style="text-align:left;padding:8px 14px;font-weight:600">${w.label}</td><td style="text-align:right;padding:8px;font-family:'JetBrains Mono',monospace">${fmt(w.budget)}</td><td style="text-align:right;padding:8px;font-family:'JetBrains Mono',monospace">${fmt(w.marg)}</td><td style="text-align:right;padding:8px;font-family:'JetBrains Mono',monospace;font-weight:700;color:${nc(w.net)}">${fmt(w.net)}</td><td style="text-align:right;padding:8px">${dH}</td><td style="text-align:right;padding:8px;font-family:'JetBrains Mono',monospace;color:${rc(w.roas)}">${fX(w.roas)}</td><td style="text-align:right;padding:8px;font-family:'JetBrains Mono',monospace;color:${roic(w.roi)}">${fP(w.roi)}</td></tr>`;})}</tbody>
       <tfoot><tr style="font-weight:700;background:#F7F7F5"><td style="text-align:left;padding:8px 14px">Разом</td><td style="text-align:right;padding:8px;font-family:'JetBrains Mono',monospace">${fmt(totBudget)}</td><td style="text-align:right;padding:8px;font-family:'JetBrains Mono',monospace">${fmt(totMarg)}</td><td style="text-align:right;padding:8px;font-family:'JetBrains Mono',monospace;color:${nc(totNet)}">${fmt(totNet)}</td><td></td><td style="text-align:right;padding:8px;font-family:'JetBrains Mono',monospace;color:${rc(totBudget?totMarg/totBudget:0)}">${fX(totBudget?totMarg/totBudget:0)}</td><td style="text-align:right;padding:8px;font-family:'JetBrains Mono',monospace;color:${totCost?totNet/totCost>=0?'#0E7C5A':'#C2453B':'#999'}">${fP(totCost?totNet/totCost:0)}</td></tr></tfoot>
     </table></div>
   </div>
 
   <div style="font-size:13px;font-weight:700;margin-bottom:10px">🏆 Рейтинг джерел</div>
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin-bottom:16px">
-    ${srcList.map((s,i)=>`<div class="kpi" style="border-left:3px solid ${s.net>=0?'#0E7C5A':'#C2453B'}"><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span style="font-size:18px;font-weight:800;color:#DDD">#${i+1}</span><span style="font-weight:700">${s.name}</span><span class="ch-btn ch-${s.ch==='Google'?'g':'p'}" style="cursor:default">${s.ch}</span></div><div style="font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:700;color:${nc(s.net)}">${fmt(s.net)} ₴</div><div style="font-size:11px;color:#999;margin-top:6px;display:flex;gap:10px"><span>Бюджет: <b style="color:#111">${fmt(s.budget)}</b></span><span>ROAS: <b style="color:${rc(s.roas)}">${fX(s.roas)}</b></span><span>ROI: <b style="color:${s.roi>=0?'#0E7C5A':'#C2453B'}">${fP(s.roi)}</b></span></div></div>`).join('')}
+    ${srcList.map((s,i)=>`<div class="kpi" style="border-left:3px solid ${s.net>=0?'#0E7C5A':'#C2453B'}"><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span style="font-size:18px;font-weight:800;color:#DDD">#${i+1}</span><span style="font-weight:700">${s.name}</span><span class="ch-btn ch-${s.ch==='Google'?'g':'p'}" style="cursor:default">${s.ch}</span></div><div style="font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:700;color:${nc(s.net)}">${fmt(s.net)} ₴</div><div style="font-size:11px;color:#999;margin-top:6px;display:flex;gap:10px"><span>Бюджет: <b style="color:#111">${fmt(s.budget)}</b></span><span>ROAS: <b style="color:${rc(s.roas)}">${fX(s.roas)}</b></span><span>ROI: <b style="color:${roic(s.roi)}">${fP(s.roi)}</b></span></div></div>`).join('')}
   </div>
 
-  ${months.length>1?`<div class="sb" style="margin-bottom:16px"><div class="sb-t">📆 По місяцях</div><div class="scroll"><table>${thRow}<tbody>${months.map((m,i)=>{const prev=i>0?months[i-1]:null,d=prev?m.net-prev.net:null,dH=d!==null?`<span style="font-size:11px;font-weight:700;color:${d>=0?'#0E7C5A':'#C2453B'}">${d>=0?'▲':'▼'} ${fmt(Math.abs(d))}</span>`:'—';return`<tr><td style="text-align:left;padding:8px 14px;font-weight:600">${mLbl(m.month)} (${m.weeks} тижн.)</td><td style="text-align:right;padding:8px;font-family:'JetBrains Mono',monospace">${fmt(m.budget)}</td><td style="text-align:right;padding:8px;font-family:'JetBrains Mono',monospace">${fmt(m.marg)}</td><td style="text-align:right;padding:8px;font-family:'JetBrains Mono',monospace;font-weight:700;color:${nc(m.net)}">${fmt(m.net)}</td><td style="text-align:right;padding:8px">${dH}</td><td style="text-align:right;padding:8px;font-family:'JetBrains Mono',monospace;color:${rc(m.roas)}">${fX(m.roas)}</td><td style="text-align:right;padding:8px;font-family:'JetBrains Mono',monospace;color:${m.roi>=0?'#0E7C5A':'#C2453B'}">${fP(m.roi)}</td></tr>`;})}</tbody></table></div></div>`:''};
+  ${months.length>1?`<div class="sb" style="margin-bottom:16px"><div class="sb-t">📆 По місяцях</div><div class="scroll"><table>${thRow}<tbody>${months.map((m,i)=>{const prev=i>0?months[i-1]:null,d=prev?m.net-prev.net:null,dH=d!==null?`<span style="font-size:11px;font-weight:700;color:${d>=0?'#0E7C5A':'#C2453B'}">${d>=0?'▲':'▼'} ${fmt(Math.abs(d))}</span>`:'—';return`<tr><td style="text-align:left;padding:8px 14px;font-weight:600">${mLbl(m.month)} (${m.weeks} тижн.)</td><td style="text-align:right;padding:8px;font-family:'JetBrains Mono',monospace">${fmt(m.budget)}</td><td style="text-align:right;padding:8px;font-family:'JetBrains Mono',monospace">${fmt(m.marg)}</td><td style="text-align:right;padding:8px;font-family:'JetBrains Mono',monospace;font-weight:700;color:${nc(m.net)}">${fmt(m.net)}</td><td style="text-align:right;padding:8px">${dH}</td><td style="text-align:right;padding:8px;font-family:'JetBrains Mono',monospace;color:${rc(m.roas)}">${fX(m.roas)}</td><td style="text-align:right;padding:8px;font-family:'JetBrains Mono',monospace;color:${roic(m.roi)}">${fP(m.roi)}</td></tr>`;})}</tbody></table></div></div>`:''};
 
   ${topCamps.length>0?`<div class="sb"><div class="sb-t">🔥 Топ кампаній за весь час</div><div class="scroll"><table><thead><tr style="background:#F7F7F5"><th style="text-align:left;padding:8px 14px">#</th><th style="text-align:left;padding:8px">Кампанія</th><th style="text-align:left;padding:8px">Джерело</th><th style="text-align:left;padding:8px;font-size:10px;color:#999">Канал</th><th style="text-align:left;padding:8px;font-size:10px;color:#999">Період</th><th style="padding:8px;text-align:right;font-size:10px;color:#999;text-transform:uppercase">Бюджет</th><th style="padding:8px;text-align:right;font-size:10px;color:#999;text-transform:uppercase">Чистими</th><th style="padding:8px;text-align:right;font-size:10px;color:#999;text-transform:uppercase">ROAS</th></tr></thead><tbody>${topCamps.map((c,i)=>`<tr><td style="padding:8px 14px;font-weight:800;color:#DDD">#${i+1}</td><td style="padding:8px;font-weight:600">${c.name}</td><td style="padding:8px;font-size:12px;color:#666">${c.src}</td><td style="padding:8px"><span class="ch-btn ch-${c.ch==='Google'?'g':'p'}" style="cursor:default">${c.ch}</span></td><td style="padding:8px;font-size:11px;color:#999">${c.period}</td><td style="text-align:right;padding:8px;font-family:'JetBrains Mono',monospace">${fmt(c.budget)}</td><td style="text-align:right;padding:8px;font-family:'JetBrains Mono',monospace;font-weight:700;color:${nc(c.net)}">${fmt(c.net)}</td><td style="text-align:right;padding:8px;font-family:'JetBrains Mono',monospace;color:${rc(c.roas)}">${fX(c.roas)}</td></tr>`).join('')}</tbody></table></div></div>`:''};
   `;
