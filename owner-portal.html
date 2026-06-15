@@ -130,6 +130,11 @@ tfoot td:first-child{text-align:left;font-family:inherit;}
 input[type=number]::-webkit-inner-spin-button,
 input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0;}
 input[type=number]{-moz-appearance:textfield;}
+.tip{position:relative;display:inline-block;cursor:help;}
+.tip .tipbox{visibility:hidden;opacity:0;background:#111;color:#fff;font-size:12px;border-radius:10px;padding:10px 13px;position:absolute;z-index:999;bottom:130%;left:50%;transform:translateX(-50%);width:220px;line-height:1.6;box-shadow:0 4px 20px rgba(0,0,0,.25);transition:opacity .18s;pointer-events:none;font-family:inherit;font-weight:400;}
+.tip .tipbox::after{content:'';position:absolute;top:100%;left:50%;transform:translateX(-50%);border:6px solid transparent;border-top-color:#111;}
+.tip:hover .tipbox{visibility:visible;opacity:1;}
+.tip-label{border-bottom:1px dashed #BBB;cursor:help;}
 .aw{font-size:11px;font-weight:700;margin-left:5px;}
 </style>
 </head>
@@ -335,7 +340,16 @@ function renderWeek(){
       <thead><tr>
         <th style="text-align:left">Кампанія</th>
         <th style="color:#1F6FEB">Заявки</th><th style="color:#1F6FEB">Оброблені</th><th style="color:#1F6FEB">Бюджет</th><th style="color:#1F6FEB">Маржа ₴</th>
-        <th>Ціна заявки</th><th>Ціна апрув</th><th>Забрали</th><th>КЦ</th><th>Поверн.</th><th>Витрати</th><th>Чистими</th><th>ROAS</th><th>ROI</th><th></th>
+        <th><span class="tip"><span class="tip-label">Ціна заявки</span><span class="tipbox">💡 <b>Ціна заявки</b><br>Бюджет ÷ Заявки<br><br>Скільки коштує залучити одного потенційного клієнта.</span></span></th>
+<th><span class="tip"><span class="tip-label">Ціна апрув</span><span class="tipbox">💡 <b>Ціна апрув</b><br>Бюджет ÷ Оброблені<br><br>Скільки коштує один підтверджений (оброблений) замовлення.</span></span></th>
+<th><span class="tip"><span class="tip-label">Забрали</span><span class="tipbox">💡 <b>Забрали</b><br>Оброблені × Викуп %<br><br>Скільки клієнтів реально забрали посилку на пошті.</span></span></th>
+<th><span class="tip"><span class="tip-label">КЦ</span><span class="tipbox">💡 <b>КЦ (Колл-центр)</b><br>Маржа × КЦ %<br><br>Витрати на менеджерів. Рахується як % від маржі.</span></span></th>
+<th><span class="tip"><span class="tip-label">Поверн.</span><span class="tipbox">💡 <b>Повернення</b><br>(Оброблені − Забрали) × Ціна відмови<br><br>Витрати за посилки які клієнт не забрав.</span></span></th>
+<th><span class="tip"><span class="tip-label">Витрати</span><span class="tipbox">💡 <b>Витрати</b><br>Бюджет + КЦ + Повернення<br><br>Всі витрати по кампанії.</span></span></th>
+<th><span class="tip"><span class="tip-label">Чистими</span><span class="tipbox">💡 <b>Чистий прибуток</b><br>Маржа − Витрати<br><br>Те що залишається після всіх витрат на рекламу. Без урахування ставок та постійних витрат.</span></span></th>
+<th><span class="tip"><span class="tip-label">ROAS</span><span class="tipbox">💡 <b>ROAS</b><br>Return On Ad Spend<br>Маржа ÷ Бюджет<br><br>Скільки гривень маржі приносить кожна витрачена гривня на рекламу.<br><br>✅ &gt;1.5x — добре<br>⚠️ 1.0–1.5x — тримати<br>🔴 &lt;1.0x — збиток</span></span></th>
+<th><span class="tip"><span class="tip-label">ROI</span><span class="tipbox">💡 <b>ROI</b><br>Return On Investment<br>Чистими ÷ Витрати × 100%<br><br>Відсоток прибутку від вкладених грошей.<br><br>✅ &gt;30% — добре<br>⚠️ 0–30% — середньо<br>🔴 &lt;0% — збиток</span></span></th>
+<th></th>
       </tr></thead>
       <tbody>${s.camps.map(c=>`<tr class="tr">
         <td><input class="ninp" value="${c.name}" onchange="sc(${s.id},${c.id},'name',this.value)"></td>
