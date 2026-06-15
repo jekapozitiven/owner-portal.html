@@ -237,7 +237,7 @@ function calc(w){
     const camps=s.camps.map(c=>{
       const v=(c.orders||0)*b,otk=(c.orders||0)-v,m=c.margin||0;
       const kc_c=m*kc,ref_c=otk*rf,cost_c=(c.budget||0)+kc_c+ref_c;
-      return{...c,v,otk,kc_c,ref_c,cost_c,net:m-cost_c,roas:c.budget?m/c.budget:0,cpl:c.leads?c.budget/c.leads:0,cpa:c.orders?c.budget/c.orders:0};
+      return{...c,v,otk,kc_c,ref_c,cost_c,net:m-cost_c,roas:c.budget?m/c.budget:0,roi:cost_c?((m-cost_c)/cost_c):0,cpl:c.leads?c.budget/c.leads:0,cpa:c.orders?c.budget/c.orders:0};
     });
     const S=camps.reduce((a,c)=>({leads:a.leads+(c.leads||0),orders:a.orders+(c.orders||0),budget:a.budget+(c.budget||0),marg:a.marg+(c.margin||0),v:a.v+c.v,kc:a.kc+c.kc_c,ref:a.ref+c.ref_c,cost:a.cost+c.cost_c,net:a.net+c.net}),{leads:0,orders:0,budget:0,marg:0,v:0,kc:0,ref:0,cost:0,net:0});
     return{...s,camps,S,avgM:S.v?S.marg/S.v:0,roas:S.budget?S.marg/S.budget:0,roi:S.cost?S.net/S.cost:0};
@@ -315,6 +315,7 @@ function renderWeek(){
       <button class="ch-btn ch-${s.ch==="Google"?"g":"p"}" onclick="tch(${s.id})">${s.ch}</button>
       <div class="buyout-wrap">Викуп<input type="number" value="${s.buyout}" min="0" max="100" onchange="ss(${s.id},'buyout',this.value)">%</div>
       <div class="src-meta-row">
+        <span>Бюджет: <b>${fmt(s.S.budget)}</b></span>
         <span>Маржа: <b>${fmt(s.S.marg)}</b></span>
         <span>Ср.маржа: <b>${fmt(s.avgM)}</b></span>
         <span>Забрали: <b>${fmt(s.S.v)}</b></span>
@@ -331,7 +332,7 @@ function renderWeek(){
       <thead><tr>
         <th style="text-align:left">Кампанія</th>
         <th style="color:#1F6FEB">Заявки</th><th style="color:#1F6FEB">Оброблені</th><th style="color:#1F6FEB">Бюджет</th><th style="color:#1F6FEB">Маржа ₴</th>
-        <th>Ціна заявки</th><th>Ціна апрув</th><th>Забрали</th><th>КЦ</th><th>Поверн.</th><th>Витрати</th><th>Чистими</th><th>ROAS</th><th></th>
+        <th>Ціна заявки</th><th>Ціна апрув</th><th>Забрали</th><th>КЦ</th><th>Поверн.</th><th>Витрати</th><th>Чистими</th><th>ROAS</th><th>ROI</th><th></th>
       </tr></thead>
       <tbody>${s.camps.map(c=>`<tr class="tr">
         <td><input class="ninp" value="${c.name}" onchange="sc(${s.id},${c.id},'name',this.value)"></td>
@@ -344,6 +345,7 @@ function renderWeek(){
         <td class="r" style="color:#999">${fmt(c.cost_c)}</td>
         <td class="r" style="font-weight:700;color:${nc(c.net)}">${fmt(c.net)}</td>
         <td class="r" style="color:${rc(c.roas)}">${fX(c.roas)}</td>
+        <td class="r" style="color:${c.roi>=0?'#0E7C5A':'#C2453B'}">${fP(c.roi)}</td>
         <td><button class="del" onclick="dc(${s.id},${c.id})">✕</button></td>
       </tr>`).join("")}</tbody>
       <tfoot><tr>
@@ -351,7 +353,7 @@ function renderWeek(){
         <td>${fmt(s.S.leads)}</td><td>${fmt(s.S.orders)}</td><td>${fmt(s.S.budget)}</td><td>${fmt(s.S.marg)}</td>
         <td>${fmt(s.S.leads?s.S.budget/s.S.leads:0)}</td><td>${fmt(s.S.orders?s.S.budget/s.S.orders:0)}</td>
         <td>${fmt(s.S.v)}</td><td>${fmt(s.S.kc)}</td><td>${fmt(s.S.ref)}</td><td>${fmt(s.S.cost)}</td>
-        <td style="color:${nc(s.S.net)}">${fmt(s.S.net)}</td><td style="color:${rc(s.roas)}">${fX(s.roas)}</td><td></td>
+        <td style="color:${nc(s.S.net)}">${fmt(s.S.net)}</td><td style="color:${rc(s.roas)}">${fX(s.roas)}</td><td style="color:${s.roi>=0?'#0E7C5A':'#C2453B'}">${fP(s.roi)}</td><td></td>
       </tr></tfoot>
     </table></div>
     <button class="add-camp" onclick="ac(${s.id})">+ Кампанія</button>`;
