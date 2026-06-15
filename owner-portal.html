@@ -131,10 +131,14 @@ input[type=number]::-webkit-inner-spin-button,
 input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0;}
 input[type=number]{-moz-appearance:textfield;}
 .tip{position:relative;display:inline-block;cursor:help;}
-.tip .tipbox{visibility:hidden;opacity:0;background:#111;color:#fff;font-size:12px;border-radius:10px;padding:10px 13px;position:absolute;z-index:999;bottom:130%;left:50%;transform:translateX(-50%);width:220px;line-height:1.6;box-shadow:0 4px 20px rgba(0,0,0,.25);transition:opacity .18s;pointer-events:none;font-family:inherit;font-weight:400;}
-.tip .tipbox::after{content:'';position:absolute;top:100%;left:50%;transform:translateX(-50%);border:6px solid transparent;border-top-color:#111;}
+.tip .tipbox{visibility:hidden;opacity:0;background:#fff;color:#111;font-size:12px;border-radius:12px;padding:12px 14px;position:absolute;z-index:9999;bottom:calc(100% + 10px);left:50%;transform:translateX(-50%);width:230px;line-height:1.65;box-shadow:0 4px 24px rgba(0,0,0,.13),0 0 0 1px #E8E8E6;transition:opacity .18s;pointer-events:none;font-family:inherit;font-weight:400;white-space:normal;text-align:left;}
+.tip .tipbox::after{content:'';position:absolute;top:100%;left:50%;transform:translateX(-50%);border:7px solid transparent;border-top-color:#fff;}
+.tip .tipbox::before{content:'';position:absolute;top:100%;left:50%;transform:translateX(-50%);border:8px solid transparent;border-top-color:#E8E8E6;margin-top:1px;}
 .tip:hover .tipbox{visibility:visible;opacity:1;}
-.tip-label{border-bottom:1px dashed #BBB;cursor:help;}
+.tip-label{border-bottom:1px dashed #CCC;cursor:help;white-space:nowrap;}
+th{overflow:visible!important;}
+table{overflow:visible!important;}
+.scroll{overflow-x:auto;overflow-y:visible!important;}
 .aw{font-size:11px;font-weight:700;margin-left:5px;}
 </style>
 </head>
