@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BLACK STREET // Власник</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:#F7F7F5;color:#111;font-family:'Inter',-apple-system,sans-serif;min-height:100vh;}
+
+/* ═══ HOME ═══════════════════════════════════════════════ */
+#home{display:block;}
+.h-top{padding:40px 44px 0;display:flex;align-items:baseline;gap:14px;}
+.h-logo{font-size:18px;font-weight:800;letter-spacing:.04em;}
+.h-logo em{opacity:.3;font-style:normal;font-weight:400;}
+.h-role{font-size:12px;font-weight:600;color:#999;background:#EBEBEB;border-radius:999px;padding:3px 10px;}
+.h-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:16px;padding:32px 44px 44px;}
+.card{background:#fff;border:1px solid #E5E5E3;border-radius:20px;padding:30px;cursor:pointer;transition:.18s;position:relative;overflow:hidden;}
+.card:hover{border-color:#B0B0AD;box-shadow:0 6px 28px rgba(0,0,0,.09);transform:translateY(-2px);}
+.card-soon{opacity:.5;cursor:default;}
+.card-soon:hover{transform:none;box-shadow:none;border-color:#E5E5E3;}
+.card-arrow{position:absolute;top:26px;right:26px;font-size:15px;color:#CCC;}
+.card-icon{font-size:34px;margin-bottom:16px;display:block;}
+.card-title{font-size:16px;font-weight:700;margin-bottom:7px;}
+.card-desc{font-size:13px;color:#888;line-height:1.55;}
+.card-badge{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;border-radius:999px;padding:4px 11px;margin-top:16px;}
+.badge-active{background:#E6F5EE;color:#0E7C5A;}
+.badge-active::before{content:'';width:6px;height:6px;background:#0E7C5A;border-radius:50%;}
+.badge-soon{background:#F0F0EE;color:#999;border:1px solid #E5E5E3;}
+
+/* ═══ APP ════════════════════════════════════════════════ */
+#app{display:none;}
+.app-bar{background:#fff;border-bottom:1px solid #E8E8E6;padding:13px 28px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
+.back{background:0;border:1px solid #E0E0DE;border-radius:8px;padding:6px 13px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit;color:#111;transition:.15s;}
+.back:hover{border-color:#888;}
+.app-bar-logo{font-size:14px;font-weight:800;letter-spacing:.04em;}
+.app-bar-logo em{opacity:.35;font-style:normal;font-weight:400;}
+.app-bar-title{font-size:13px;color:#999;border-left:1px solid #E8E8E6;padding-left:14px;}
+.bar-right{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;}
+.btn{background:#fff;border:1px solid #E0E0DE;border-radius:8px;padding:7px 14px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit;color:#111;transition:.15s;}
+.btn:hover{border-color:#888;}
+
+/* main */
+.main{padding:24px 28px;max-width:1200px;margin:0 auto;}
+
+/* tabs */
+.tabs{display:inline-flex;gap:2px;background:#F0F0EE;border:1px solid #E5E5E3;border-radius:10px;padding:3px;margin-bottom:22px;}
+.tab{border:0;background:0;color:#999;padding:8px 18px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:.15s;}
+.tab.on{background:#fff;color:#111;box-shadow:0 1px 4px rgba(0,0,0,.1);}
+
+/* week bar */
+.wbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px;}
+.wpill{border:1px solid #E0E0DE;background:#fff;color:#999;padding:6px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;transition:.15s;}
+.wpill.on{background:#111;color:#fff;border-color:#111;}
+.btn-red{color:#C2453B;border-color:#F0D8D8;}
+.btn-red:hover{border-color:#C2453B;background:#FDF4F4;}
+
+/* date row */
+.date-row{display:flex;gap:12px;flex-wrap:wrap;align-items:center;background:#fff;border:1px solid #E8E8E6;border-radius:10px;padding:12px 16px;margin-bottom:14px;}
+.date-row label{font-size:11px;color:#999;font-weight:600;display:flex;flex-direction:column;gap:4px;}
+.date-row input[type=date]{background:#F7F7F5;border:1px solid #E5E5E3;color:#111;padding:6px 10px;border-radius:7px;font-size:13px;font-family:inherit;outline:none;}
+.date-row input[type=date]:focus{border-color:#111;}
+.range-lbl{font-size:13px;font-weight:700;}
+
+/* params */
+.params{display:flex;gap:8px;flex-wrap:wrap;align-items:center;background:#fff;border:1px solid #E8E8E6;border-radius:10px;padding:12px 16px;margin-bottom:14px;}
+.p-lbl{font-size:11px;color:#999;font-weight:600;}
+.p-grp{display:flex;align-items:center;gap:6px;background:#F7F7F5;border:1px solid #E5E5E3;border-radius:8px;padding:5px 10px;}
+.p-grp span{font-size:12px;color:#999;}
+.p-grp input{background:0;border:0;color:#111;width:52px;font-family:'JetBrains Mono',monospace;font-size:13px;outline:none;text-align:right;}
+
+/* kpis */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:14px;}
+.kpi{background:#fff;border:1px solid #E8E8E6;border-radius:12px;padding:16px 18px;}
+.kpi-lbl{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:#999;margin-bottom:6px;font-weight:600;}
+.kpi-val{font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700;line-height:1.1;}
+.kpi-sub{font-size:11px;color:#999;margin-top:5px;}
+
+/* source */
+.src-card{background:#fff;border:1px solid #E8E8E6;border-radius:14px;margin-bottom:12px;overflow:hidden;}
+.src-head{display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid #F0F0EE;flex-wrap:wrap;}
+.src-name{background:0;border:0;color:#111;font-size:15px;font-weight:700;outline:none;font-family:inherit;width:160px;}
+.ch-btn{font-size:10px;font-weight:700;padding:3px 9px;border-radius:6px;border:0;cursor:pointer;}
+.ch-g{background:#E8F0FE;color:#1F6FEB;}
+.ch-p{background:#F3E8FE;color:#7C3AED;}
+.buyout-wrap{display:flex;align-items:center;gap:4px;background:#F7F7F5;border:1px solid #E5E5E3;border-radius:7px;padding:4px 8px;font-size:12px;color:#999;}
+.buyout-wrap input{background:0;border:0;color:#111;width:36px;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;outline:none;text-align:right;}
+.src-meta-row{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:#999;}
+.src-meta-row b{color:#111;font-family:'JetBrains Mono',monospace;font-weight:600;}
+.src-result{margin-left:auto;text-align:right;}
+.src-net{font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:700;}
+.src-sub{font-size:11px;color:#999;margin-top:2px;}
+.del{opacity:0;background:0;border:0;color:#C2453B;cursor:pointer;font-size:15px;padding:2px 6px;}
+.src-head:hover .del,.tr:hover .del{opacity:.5;}
+.del:hover{opacity:1!important;}
+
+/* table */
+.scroll{overflow-x:auto;}
+table{border-collapse:collapse;width:100%;}
+th{font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:#999;font-weight:600;text-align:right;padding:8px;white-space:nowrap;background:#F7F7F5;}
+th:first-child{text-align:left;}
+td{padding:1px 4px;border-top:1px solid #F0F0EE;font-size:13px;}
+.r{text-align:right;font-family:'JetBrains Mono',monospace;}
+tfoot td{border-top:2px solid #E8E8E6;font-weight:700;font-family:'JetBrains Mono',monospace;text-align:right;padding:8px;}
+tfoot td:first-child{text-align:left;font-family:inherit;}
+.inp{background:#F7F7F5;border:1px solid #E5E5E3;border-radius:6px;color:#111;font-family:'JetBrains Mono',monospace;font-size:13px;text-align:right;padding:5px 7px;width:100%;outline:none;font-family:'JetBrains Mono',monospace;}
+.inp:focus{border-color:#111;background:#fff;}
+.ninp{background:0;border:0;color:#111;font-family:inherit;font-size:13px;outline:none;width:148px;padding:5px 4px;}
+.add-camp{border:1px dashed #DDD;background:0;color:#999;border-radius:8px;padding:7px 14px;font-size:12px;cursor:pointer;margin:10px 18px;font-family:inherit;transition:.15s;}
+.add-camp:hover{color:#111;border-color:#111;}
+
+/* grand */
+.grand{background:#fff;border:1px solid #E8E8E6;border-radius:14px;padding:18px 20px;margin-top:4px;}
+.grand-t{font-size:10px;font-weight:700;color:#999;text-transform:uppercase;letter-spacing:.06em;margin-bottom:14px;}
+.grand-g{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;}
+.gi{display:flex;flex-direction:column;gap:3px;}
+.gi span:first-child{font-size:10px;color:#999;text-transform:uppercase;letter-spacing:.04em;}
+.gi span:last-child{font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700;}
+
+/* stats */
+.sf{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;}
+.fchip{border:1px solid #E0E0DE;background:#fff;color:#999;padding:6px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;transition:.15s;}
+.fchip.on{background:#111;color:#fff;border-color:#111;}
+.sb{background:#fff;border:1px solid #E8E8E6;border-radius:12px;overflow:hidden;margin-bottom:12px;}
+.sb-t{font-size:13px;font-weight:700;padding:13px 18px;border-bottom:1px solid #F0F0EE;}
+
+.hint{font-size:11px;color:#AAA;text-align:center;margin-top:16px;}
+.aw{font-size:11px;font-weight:700;margin-left:5px;}
+</style>
+</head>
+<body>
+
+<!-- HOME -->
+<div id="home">
+  <div class="h-top">
+    <div class="h-logo">BLACK STREET <em>//</em></div>
+    <div class="h-role">Власник</div>
+  </div>
+  <div class="h-grid">
+    <div class="card" onclick="openApp()">
+      <span class="card-arrow">↗</span>
+      <span class="card-icon">📊</span>
+      <div class="card-title">Трекер реклами</div>
+      <div class="card-desc">Щотижневий аналіз по кампаніях і джерелах. Бюджет, маржа, ROAS, ROI, стрілки динаміки.</div>
+      <div class="card-badge badge-active">Активно</div>
+    </div>
+    <div class="card card-soon">
+      <span class="card-arrow">↗</span>
+      <span class="card-icon">💳</span>
+      <div class="card-title">Фінанси</div>
+      <div class="card-desc">Чистий прибуток, P&L по місяцях, касовий розрив, порівняння з планом.</div>
+      <div class="card-badge badge-soon">Скоро</div>
+    </div>
+    <div class="card card-soon">
+      <span class="card-arrow">↗</span>
+      <span class="card-icon">📦</span>
+      <div class="card-title">Викуп</div>
+      <div class="card-desc">Відсоток викупу по джерелах, менеджерах і товарах. Динаміка по тижнях.</div>
+      <div class="card-badge badge-soon">Скоро</div>
+    </div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <div class="app-bar">
+    <button class="back" onclick="goHome()">← На головну</button>
+    <div class="app-bar-logo">BLACK STREET <em>//</em></div>
+    <div class="app-bar-title">Трекер реклами</div>
+    <div class="bar-right">
+      <button class="btn" onclick="exportData()">⬇ Експорт</button>
+      <button class="btn" onclick="document.getElementById('fimp').click()">⬆ Імпорт</button>
+      <input type="file" id="fimp" accept=".json" style="display:none" onchange="importData(event)">
+    </div>
+  </div>
+  <div class="main">
+    <div class="tabs">
+      <button class="tab on" id="tb-week" onclick="switchTab('week')">Тиждень</button>
+      <button class="tab" id="tb-stats" onclick="switchTab('stats')">Статистика</button>
+    </div>
+
+    <div id="pane-week">
+      <div class="wbar">
+        <div id="pills"></div>
+        <button class="btn" onclick="addWeek()">+ Тиждень</button>
+        <button class="btn btn-red" onclick="delWeek()">Видалити</button>
+      </div>
+      <div class="date-row">
+        <label>Перша дата<input type="date" id="ds" onchange="saveDate('start',this.value)"></label>
+        <label>Остання дата<input type="date" id="de" onchange="saveDate('end',this.value)"></label>
+        <span class="range-lbl" id="rl"></span>
+      </div>
+      <div class="params">
+        <span class="p-lbl">Параметри:</span>
+        <div class="p-grp"><span>КЦ %</span><input id="pkc" type="number" step="0.1" value="7" onchange="sp('kcPct',this.value)"></div>
+        <div class="p-grp"><span>Ціна відмови ₴</span><input id="prf" type="number" value="100" onchange="sp('refCost',this.value)"></div>
+      </div>
+      <div class="kpis" id="kpis"></div>
+      <div id="srcs"></div>
+      <button class="btn" style="margin-bottom:20px" onclick="addSrc()">+ Джерело</button>
+      <div class="grand" id="grand"></div>
+      <p class="hint">Сині заголовки — вводиш ти. Решта рахується автоматично. Для синхронізації між ПК — Експорт → перенеси файл → Імпорт.</p>
+    </div>
+
+    <div id="pane-stats" style="display:none">
+      <div id="stats"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const LS={get:k=>{try{return JSON.parse(localStorage.getItem(k));}catch(e){return null;}},set:(k,v)=>localStorage.setItem(k,JSON.stringify(v))};
+let weeks=[],cur=null,_i=0;
+const nid=()=>Date.now()+(++_i);
+const ec=()=>({id:nid(),name:"Кампанія",leads:0,orders:0,budget:0,margin:0});
+const es=()=>({id:nid(),name:"Джерело",ch:"Google",buyout:67,camps:[ec()]});
+const today=()=>new Date().toISOString().slice(0,10);
+const mon=d=>{const x=new Date(d);x.setDate(x.getDate()-(x.getDay()+6)%7);return x.toISOString().slice(0,10);};
+const addD=(iso,n)=>new Date(new Date(iso).getTime()+n*86400000).toISOString().slice(0,10);
+const fd=iso=>{const d=new Date(iso);return`${String(d.getDate()).padStart(2,"0")}.${String(d.getMonth()+1).padStart(2,"0")}`;};
+const wlbl=w=>w.start&&w.end?`${fd(w.start)}–${fd(w.end)}`:w.start?fd(w.start):"?";
+const mlbl=ym=>{const ms=["Січ","Лют","Бер","Кві","Тра","Чер","Лип","Сер","Вер","Жов","Лис","Гру"];const[y,m]=ym.split("-").map(Number);return`${ms[m-1]} ${y}`;};
+const cw=()=>weeks.find(w=>w.id===cur)||null;
+const fmt=n=>(!n&&n!==0)?"—":Math.round(n).toLocaleString("uk-UA");
+const fX=n=>isNaN(n)||!isFinite(n)?"—":n.toFixed(2)+"x";
+const fP=n=>isNaN(n)||!isFinite(n)?"—":Math.round(n*100)+"%";
+const nc=v=>v<=5000?"#C2453B":v<=7000?"#F97316":v<=12000?"#CA8A04":"#0E7C5A";
+const rc=v=>v>=1.5?"#0E7C5A":v>=1?"#CA8A04":"#C2453B";
+const aw=(c,p,x)=>{if(p===null||p===undefined)return"";const d=c-p,u=d>=0,col=u?"#0E7C5A":"#C2453B";return`<span class="aw" style="color:${col}">${u?"▲":"▼"} ${x?fX(Math.abs(d)):fmt(Math.abs(d))}</span>`;};
+
+function calc(w){
+  const kc=(w.kcPct||7)/100,rf=w.refCost||100;
+  const srcs=w.sources.map(s=>{
+    const b=(s.buyout||0)/100;
+    const camps=s.camps.map(c=>{
+      const v=(c.orders||0)*b,otk=(c.orders||0)-v,m=c.margin||0;
+      const kc_c=m*kc,ref_c=otk*rf,cost_c=(c.budget||0)+kc_c+ref_c;
+      return{...c,v,otk,kc_c,ref_c,cost_c,net:m-cost_c,roas:c.budget?m/c.budget:0,cpl:c.leads?c.budget/c.leads:0,cpa:c.orders?c.budget/c.orders:0};
+    });
+    const S=camps.reduce((a,c)=>({leads:a.leads+(c.leads||0),orders:a.orders+(c.orders||0),budget:a.budget+(c.budget||0),marg:a.marg+(c.margin||0),v:a.v+c.v,kc:a.kc+c.kc_c,ref:a.ref+c.ref_c,cost:a.cost+c.cost_c,net:a.net+c.net}),{leads:0,orders:0,budget:0,marg:0,v:0,kc:0,ref:0,cost:0,net:0});
+    return{...s,camps,S,avgM:S.v?S.marg/S.v:0,roas:S.budget?S.marg/S.budget:0,roi:S.cost?S.net/S.cost:0};
+  });
+  const T=srcs.reduce((a,s)=>({budget:a.budget+s.S.budget,marg:a.marg+s.S.marg,v:a.v+s.S.v,kc:a.kc+s.S.kc,ref:a.ref+s.S.ref,cost:a.cost+s.S.cost,net:a.net+s.S.net}),{budget:0,marg:0,v:0,kc:0,ref:0,cost:0,net:0});
+  return{srcs,T,roas:T.budget?T.marg/T.budget:0,roi:T.cost?T.net/T.cost:0};
+}
+
+function save(){LS.set("bsown:weeks",weeks);}
+
+function init(){
+  const s=LS.get("bsown:weeks");
+  if(s&&s.length){weeks=s;}
+  else{
+    const start=mon(today());
+    weeks=[{id:nid(),start,end:addD(start,6),kcPct:7,refCost:100,sources:[
+      {id:nid(),name:"Black-street",ch:"Google",buyout:67,camps:[
+        {id:nid(),name:"Весняний товар",leads:0,orders:0,budget:0,margin:0},
+        {id:nid(),name:"Літній товар",leads:0,orders:0,budget:0,margin:0},
+        {id:nid(),name:"Літні костюми",leads:0,orders:0,budget:0,margin:0},
+        {id:nid(),name:"Всі товари 1007",leads:0,orders:0,budget:0,margin:0},
+      ]},
+      {id:nid(),name:"Bonna-shop",ch:"Google",buyout:64,camps:[
+        {id:nid(),name:"Весняний товар",leads:0,orders:0,budget:0,margin:0},
+        {id:nid(),name:"Літній товар",leads:0,orders:0,budget:0,margin:0},
+        {id:nid(),name:"Всі товари 0208",leads:0,orders:0,budget:0,margin:0},
+      ]},
+      {id:nid(),name:"Blink",ch:"Google",buyout:58,camps:[
+        {id:nid(),name:"PMax 3.0 #5",leads:0,orders:0,budget:0,margin:0},
+      ]},
+    ]}];
+    save();
+  }
+  cur=weeks[weeks.length-1].id;
+}
+
+function openApp(){document.getElementById("home").style.display="none";document.getElementById("app").style.display="block";render();}
+function goHome(){document.getElementById("app").style.display="none";document.getElementById("home").style.display="block";}
+
+function addWeek(){const l=weeks[weeks.length-1];const st=addD(l.end||l.start,1);const en=addD(st,6);const nw={...JSON.parse(JSON.stringify(l)),id:nid(),start:st,end:en,sources:l.sources.map(s=>({...s,id:nid(),camps:s.camps.map(c=>({...c,id:nid(),leads:0,orders:0,budget:0,margin:0}))}))};weeks.push(nw);cur=nw.id;save();render();}
+function delWeek(){if(weeks.length<=1){alert("Не можна видалити єдиний тиждень");return;}weeks=weeks.filter(w=>w.id!==cur);cur=weeks[weeks.length-1].id;save();render();}
+function saveDate(f,v){const w=cw();if(!w)return;w[f==="start"?"start":"end"]=v;weeks.sort((a,b)=>a.start<b.start?-1:1);save();render();}
+function sp(k,v){const w=cw();if(!w)return;w[k]=parseFloat(v)||0;save();renderWeek();}
+function ss(sid,k,v){const w=cw();if(!w)return;const s=w.sources.find(x=>x.id===sid);if(!s)return;s[k]=k==="name"||k==="ch"?v:parseFloat(v)||0;save();renderWeek();}
+function tch(sid){const w=cw();if(!w)return;const s=w.sources.find(x=>x.id===sid);if(!s)return;s.ch=s.ch==="Google"?"Prom":"Google";save();renderWeek();}
+function sc(sid,cid,k,v){const w=cw();if(!w)return;const s=w.sources.find(x=>x.id===sid);if(!s)return;const c=s.camps.find(x=>x.id===cid);if(!c)return;c[k]=k==="name"?v:parseFloat(v)||0;save();renderWeek();}
+function ac(sid){const w=cw();if(!w)return;const s=w.sources.find(x=>x.id===sid);if(!s)return;s.camps.push(ec());save();renderWeek();}
+function dc(sid,cid){const w=cw();if(!w)return;const s=w.sources.find(x=>x.id===sid);if(!s)return;s.camps=s.camps.filter(c=>c.id!==cid);save();renderWeek();}
+function addSrc(){const w=cw();if(!w)return;w.sources.push(es());save();renderWeek();}
+function ds(sid){const w=cw();if(!w)return;w.sources=w.sources.filter(s=>s.id!==sid);save();renderWeek();}
+
+function renderWeek(){
+  const w=cw();if(!w)return;
+  const c=calc(w);
+  document.getElementById("pkc").value=w.kcPct||7;
+  document.getElementById("prf").value=w.refCost||100;
+  document.getElementById("ds").value=w.start||"";
+  document.getElementById("de").value=w.end||"";
+  document.getElementById("rl").textContent=wlbl(w);
+  const wi=weeks.findIndex(x=>x.id===cur);
+  const pw=wi>0?calc(weeks[wi-1]):null;
+
+  document.getElementById("kpis").innerHTML=`
+    <div class="kpi"><div class="kpi-lbl">Чистий прибуток</div><div class="kpi-val" style="color:${nc(c.T.net)}">${fmt(c.T.net)} ₴${aw(c.T.net,pw?pw.T.net:null)}</div><div class="kpi-sub">до ставок і постійних витрат</div></div>
+    <div class="kpi"><div class="kpi-lbl">ROAS</div><div class="kpi-val" style="color:${rc(c.roas)}">${fX(c.roas)}${aw(c.roas,pw?pw.roas:null,true)}</div><div class="kpi-sub">маржа / бюджет</div></div>
+    <div class="kpi"><div class="kpi-lbl">ROI</div><div class="kpi-val" style="color:${c.roi>=0?"#0E7C5A":"#C2453B"}">${fP(c.roi)}</div><div class="kpi-sub">чистий / витрати</div></div>
+    <div class="kpi"><div class="kpi-lbl">Маржа</div><div class="kpi-val">${fmt(c.T.marg)} ₴</div><div class="kpi-sub">всього по всіх джерелах</div></div>`;
+
+  const sw=document.getElementById("srcs");sw.innerHTML="";
+  c.srcs.forEach(s=>{
+    const ps=pw?pw.srcs.find(x=>x.name===s.name&&x.ch===s.ch):null;
+    const d=document.createElement("div");d.className="src-card";
+    d.innerHTML=`<div class="src-head">
+      <input class="src-name" value="${s.name}" oninput="ss(${s.id},'name',this.value)">
+      <button class="ch-btn ch-${s.ch==="Google"?"g":"p"}" onclick="tch(${s.id})">${s.ch}</button>
+      <div class="buyout-wrap">Викуп<input type="number" value="${s.buyout}" min="0" max="100" oninput="ss(${s.id},'buyout',this.value)">%</div>
+      <div class="src-meta-row">
+        <span>Маржа: <b>${fmt(s.S.marg)}</b></span>
+        <span>Ср.маржа: <b>${fmt(s.avgM)}</b></span>
+        <span>Забрали: <b>${fmt(s.S.v)}</b></span>
+        <span>Ціна заявки: <b>${fmt(s.S.leads?s.S.budget/s.S.leads:0)}</b></span>
+        <span>Ціна апрув: <b>${fmt(s.S.orders?s.S.budget/s.S.orders:0)}</b></span>
+      </div>
+      <div class="src-result">
+        <div class="src-net" style="color:${nc(s.S.net)}">${fmt(s.S.net)} ₴${aw(s.S.net,ps?ps.S.net:null)}</div>
+        <div class="src-sub">ROAS ${fX(s.roas)} · ROI ${fP(s.roi)}</div>
+      </div>
+      <button class="del" onclick="ds(${s.id})">✕</button>
+    </div>
+    <div class="scroll"><table>
+      <thead><tr>
+        <th style="text-align:left">Кампанія</th>
+        <th style="color:#1F6FEB">Заявки</th><th style="color:#1F6FEB">Оброблені</th><th style="color:#1F6FEB">Бюджет</th><th style="color:#1F6FEB">Маржа ₴</th>
+        <th>Ціна заявки</th><th>Ціна апрув</th><th>Забрали</th><th>КЦ</th><th>Поверн.</th><th>Витрати</th><th>Чистими</th><th>ROAS</th><th></th>
+      </tr></thead>
+      <tbody>${s.camps.map(c=>`<tr class="tr">
+        <td><input class="ninp" value="${c.name}" oninput="sc(${s.id},${c.id},'name',this.value)"></td>
+        <td><input class="inp" style="width:66px" type="number" value="${c.leads||""}" placeholder="0" onfocus="this.select()" oninput="sc(${s.id},${c.id},'leads',this.value)"></td>
+        <td><input class="inp" style="width:76px" type="number" value="${c.orders||""}" placeholder="0" onfocus="this.select()" oninput="sc(${s.id},${c.id},'orders',this.value)"></td>
+        <td><input class="inp" style="width:86px" type="number" value="${c.budget||""}" placeholder="0" onfocus="this.select()" oninput="sc(${s.id},${c.id},'budget',this.value)"></td>
+        <td><input class="inp" style="width:86px" type="number" value="${c.margin||""}" placeholder="0" onfocus="this.select()" oninput="sc(${s.id},${c.id},'margin',this.value)"></td>
+        <td class="r">${fmt(c.cpl)}</td><td class="r">${fmt(c.cpa)}</td><td class="r">${fmt(c.v)}</td>
+        <td class="r" style="color:#999">${fmt(c.kc_c)}</td><td class="r" style="color:#999">${fmt(c.ref_c)}</td>
+        <td class="r" style="color:#999">${fmt(c.cost_c)}</td>
+        <td class="r" style="font-weight:700;color:${nc(c.net)}">${fmt(c.net)}</td>
+        <td class="r" style="color:${rc(c.roas)}">${fX(c.roas)}</td>
+        <td><button class="del" onclick="dc(${s.id},${c.id})">✕</button></td>
+      </tr>`).join("")}</tbody>
+      <tfoot><tr>
+        <td style="text-align:left;font-family:inherit">Разом</td>
+        <td>${fmt(s.S.leads)}</td><td>${fmt(s.S.orders)}</td><td>${fmt(s.S.budget)}</td><td>${fmt(s.S.marg)}</td>
+        <td>${fmt(s.S.leads?s.S.budget/s.S.leads:0)}</td><td>${fmt(s.S.orders?s.S.budget/s.S.orders:0)}</td>
+        <td>${fmt(s.S.v)}</td><td>${fmt(s.S.kc)}</td><td>${fmt(s.S.ref)}</td><td>${fmt(s.S.cost)}</td>
+        <td style="color:${nc(s.S.net)}">${fmt(s.S.net)}</td><td style="color:${rc(s.roas)}">${fX(s.roas)}</td><td></td>
+      </tr></tfoot>
+    </table></div>
+    <button class="add-camp" onclick="ac(${s.id})">+ Кампанія</button>`;
+    sw.appendChild(d);
+  });
+
+  document.getElementById("grand").innerHTML=`<div class="grand-t">Разом за тиждень</div><div class="grand-g">
+    <div class="gi"><span>Бюджет реклами</span><span>${fmt(c.T.budget)} ₴</span></div>
+    <div class="gi"><span>КЦ (% від маржі)</span><span>${fmt(c.T.kc)} ₴</span></div>
+    <div class="gi"><span>Повернення</span><span>${fmt(c.T.ref)} ₴</span></div>
+    <div class="gi"><span>Маржа</span><span>${fmt(c.T.marg)} ₴</span></div>
+    <div class="gi"><span>Всі витрати</span><span>${fmt(c.T.cost)} ₴</span></div>
+    <div class="gi"><span>Забрали шт</span><span>${fmt(c.T.v)}</span></div>
+    <div class="gi"><span>ROAS / ROI</span><span>${fX(c.roas)} / ${fP(c.roi)}</span></div>
+    <div class="gi"><span>Чистий прибуток</span><span style="color:${nc(c.T.net)}">${fmt(c.T.net)} ₴</span></div>
+  </div>`;
+}
+
+function renderPills(){document.getElementById("pills").innerHTML=weeks.map(w=>`<button class="wpill${w.id===cur?" on":""}" onclick="pw(${w.id})">${wlbl(w)}</button>`).join("");}
+function pw(id){cur=id;render();}
+
+function renderStats(){
+  const allK=[...new Set(weeks.flatMap(w=>w.sources.map(s=>s.name+"|"+s.ch)))];
+  if(!window._ss)window._ss=new Set(allK);
+  const sel=window._ss;
+  const rows=weeks.map(w=>{const c=calc(w);return{id:w.id,label:wlbl(w),month:w.start?w.start.slice(0,7):"",srcs:c.srcs};});
+  const byM={};
+  rows.forEach(r=>{if(!r.month)return;const m=byM[r.month]||(byM[r.month]={month:r.month,budget:0,marg:0,cost:0,net:0,weeks:0});r.srcs.filter(s=>sel.has(s.name+"|"+s.ch)).forEach(s=>{m.budget+=s.S.budget;m.marg+=s.S.marg;m.cost+=s.S.cost;m.net+=s.S.net;});m.weeks++;});
+  Object.values(byM).forEach(m=>{m.roas=m.budget?m.marg/m.budget:0;m.roi=m.cost?m.net/m.cost:0;});
+  const months=Object.values(byM);
+  const th=`<thead><tr style="background:#F7F7F5"><th style="text-align:left;padding:8px 14px">Період</th><th style="padding:8px;text-align:right;font-size:10px;color:#999;text-transform:uppercase">Бюджет</th><th style="padding:8px;text-align:right;font-size:10px;color:#999;text-transform:uppercase">Маржа</th><th style="padding:8px;text-align:right;font-size:10px;color:#999;text-transform:uppercase">Чистими</th><th style="padding:8px;text-align:right;font-size:10px;color:#999;text-transform:uppercase">Δ</th><th style="padding:8px;text-align:right;font-size:10px;color:#999;text-transform:uppercase">ROAS</th><th style="padding:8px;text-align:right;font-size:10px;color:#999;text-transform:uppercase">ROI</th></tr></thead>`;
+  const prows=data=>data.map((r,i)=>{const net=r.net||0,pv=i>0?data[i-1]:null,pn=pv?pv.net||0:null,roas=r.roas||0,roi=r.roi||0,lbl=r.label||mlbl(r.month);return`<tr><td style="text-align:left;padding:8px 14px;font-weight:500">${lbl}</td><td class="r" style="padding:8px">${fmt(r.budget||0)}</td><td class="r" style="padding:8px">${fmt(r.marg||0)}</td><td class="r" style="padding:8px;font-weight:700;color:${nc(net)}">${fmt(net)}</td><td class="r" style="padding:8px">${pn!==null?aw(net,pn):"—"}</td><td class="r" style="padding:8px;color:${rc(roas)}">${fX(roas)}</td><td class="r" style="padding:8px;color:${roi>=0?"#0E7C5A":"#C2453B"}">${fP(roi)}</td></tr>`;}).join("");
+  const wd=rows.map(r=>{const f=r.srcs.filter(s=>sel.has(s.name+"|"+s.ch));const T=f.reduce((a,s)=>({budget:a.budget+s.S.budget,marg:a.marg+s.S.marg,cost:a.cost+s.S.cost,net:a.net+s.S.net}),{budget:0,marg:0,cost:0,net:0});return{...r,...T,roas:T.budget?T.marg/T.budget:0,roi:T.cost?T.net/T.cost:0};});
+  document.getElementById("stats").innerHTML=`
+    <div style="margin-bottom:14px"><div style="font-size:11px;color:#999;font-weight:600;margin-bottom:8px">Показувати джерела:</div>
+    <div class="sf">${allK.map(k=>`<button class="fchip${sel.has(k)?" on":""}" onclick="ts('${k}')">${k.replace("|"," · ")}</button>`).join("")}</div></div>
+    <div class="sb"><div class="sb-t">📅 Загальна — щотижнево</div><div class="scroll"><table>${th}<tbody>${prows(wd)}</tbody></table></div></div>
+    <div class="sb"><div class="sb-t">📆 Загальна — щомісяця</div><div class="scroll"><table>${th}<tbody>${prows(months)}</tbody></table></div></div>
+    ${allK.filter(k=>sel.has(k)).map(k=>{const[name,ch]=k.split("|");const sr=rows.map((r,i)=>{const s=r.srcs.find(x=>x.name===name&&x.ch===ch)||{S:{budget:0,marg:0,cost:0,net:0},roas:0,roi:0};const p=i>0?rows[i-1].srcs.find(x=>x.name===name&&x.ch===ch):null;return`<tr><td style="text-align:left;padding:8px 14px;font-weight:500">${r.label}</td><td class="r" style="padding:8px">${fmt(s.S.budget)}</td><td class="r" style="padding:8px">${fmt(s.S.marg)}</td><td class="r" style="padding:8px;font-weight:700;color:${nc(s.S.net)}">${fmt(s.S.net)}</td><td class="r" style="padding:8px">${p?aw(s.S.net,p.S.net):"—"}</td><td class="r" style="padding:8px;color:${rc(s.roas)}">${fX(s.roas)}</td><td class="r" style="padding:8px;color:${s.S.net>=0?"#0E7C5A":"#C2453B"}">${fP(s.roi)}</td></tr>`;}).join("");return`<div class="sb"><div class="sb-t">${name} <span class="ch-btn ch-${ch==="Google"?"g":"p"}" style="cursor:default">${ch}</span></div><div class="scroll"><table>${th}<tbody>${sr}</tbody></table></div></div>`;}).join("")}
+    <p class="hint">▲ краще, ▼ гірше відносно попереднього тижня.</p>`;
+}
+function ts(k){if(!window._ss)window._ss=new Set();window._ss.has(k)?window._ss.delete(k):window._ss.add(k);renderStats();}
+
+function switchTab(t){["week","stats"].forEach(x=>{document.getElementById("pane-"+x).style.display=x===t?"":"none";document.getElementById("tb-"+x).classList.toggle("on",x===t);});if(t==="stats")renderStats();}
+
+function exportData(){const b=new Blob([JSON.stringify(weeks,null,2)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download=`ads-${today()}.json`;a.click();}
+function importData(e){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const d=JSON.parse(ev.target.result);if(Array.isArray(d)){weeks=d;cur=weeks[weeks.length-1].id;save();render();alert("Імпорт успішний!");}else alert("Невірний формат");}catch(err){alert("Помилка читання файлу");}};r.readAsText(f);e.target.value="";}
+
+function render(){renderPills();renderWeek();}
+init();
+</script>
+</body>
+</html>
