@@ -242,11 +242,20 @@ function calc(w){
   const srcs=w.sources.map(s=>{
     const b=(s.buyout||0)/100;
     const camps=s.camps.map(c=>{
-      const v=(c.orders||0)*b,otk=(c.orders||0)-v,m=c.margin||0;
-      const kc_c=m*kc,ref_c=otk*rf,cost_c=(c.budget||0)+kc_c+ref_c;
-      return{...c,v,otk,kc_c,ref_c,cost_c,net:m-cost_c,roas:c.budget?m/c.budget:0,roi:cost_c?((m-cost_c)/cost_c):0,cpl:c.leads?c.budget/c.leads:0,cpa:c.orders?c.budget/c.orders:0};
+      const v=(c.orders||0)*b;           // забрали (викупили)
+      const otk=(c.orders||0)-v;         // відмови
+      const m_full=c.margin||0;          // маржа введена (як ніби всі викупили)
+      const m=m_full*b;                  // реальна маржа = повна × % викупу
+      const kc_c=m*kc;                   // КЦ від реальної маржі
+      const ref_c=otk*rf;               // повернення
+      const cost_c=(c.budget||0)+kc_c+ref_c;
+      return{...c,v,otk,m_full,kc_c,ref_c,cost_c,net:m-cost_c,
+        roas:c.budget?m/c.budget:0,
+        roi:cost_c?((m-cost_c)/cost_c):0,
+        cpl:c.leads?c.budget/c.leads:0,
+        cpa:c.orders?c.budget/c.orders:0};
     });
-    const S=camps.reduce((a,c)=>({leads:a.leads+(c.leads||0),orders:a.orders+(c.orders||0),budget:a.budget+(c.budget||0),marg:a.marg+(c.margin||0),v:a.v+c.v,kc:a.kc+c.kc_c,ref:a.ref+c.ref_c,cost:a.cost+c.cost_c,net:a.net+c.net}),{leads:0,orders:0,budget:0,marg:0,v:0,kc:0,ref:0,cost:0,net:0});
+    const S=camps.reduce((a,c)=>({leads:a.leads+(c.leads||0),orders:a.orders+(c.orders||0),budget:a.budget+(c.budget||0),marg:a.marg+c.m_full,v:a.v+c.v,kc:a.kc+c.kc_c,ref:a.ref+c.ref_c,cost:a.cost+c.cost_c,net:a.net+c.net}),{leads:0,orders:0,budget:0,marg:0,v:0,kc:0,ref:0,cost:0,net:0});
     return{...s,camps,S,avgM:S.v?S.marg/S.v:0,roas:S.budget?S.marg/S.budget:0,roi:S.cost?S.net/S.cost:0};
   });
   const T=srcs.reduce((a,s)=>({budget:a.budget+s.S.budget,marg:a.marg+s.S.marg,v:a.v+s.S.v,kc:a.kc+s.S.kc,ref:a.ref+s.S.ref,cost:a.cost+s.S.cost,net:a.net+s.S.net}),{budget:0,marg:0,v:0,kc:0,ref:0,cost:0,net:0});
