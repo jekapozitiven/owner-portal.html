@@ -230,7 +230,7 @@ const fX=n=>isNaN(n)||!isFinite(n)?"—":n.toFixed(2)+"x";
 const fP=n=>isNaN(n)||!isFinite(n)?"—":Math.round(n*100)+"%";
 const nc=v=>v<=5000?"#C2453B":v<=7000?"#F97316":v<=12000?"#CA8A04":"#0E7C5A";
 const rc=v=>v>=2.5?"#0E7C5A":v>=1.7?"#CA8A04":v>=1.3?"#F97316":"#C2453B";
-const roic=v=>v>=0.65?"#0E7C5A":v>=0.55?"#CA8A04":v>=0.45?"#F97316":"#C2453B";
+const roic=v=>v>=1.0?"#7C3AED":v>=0.75?"#0E7C5A":v>=0.60?"#CA8A04":v>=0.50?"#F97316":"#C2453B";
 const aw=(c,p,x)=>{if(p===null||p===undefined)return"";const d=c-p,u=d>=0,col=u?"#0E7C5A":"#C2453B";return`<span class="aw" style="color:${col}">${u?"▲":"▼"} ${x?fX(Math.abs(d)):fmt(Math.abs(d))}</span>`;}
 
 function calc(w){
@@ -253,8 +253,12 @@ function calc(w){
       budget:a.budget+(c.budget||0),marg:a.marg+c.m_full,v:a.v+c.v,
       kc:a.kc+c.kc_c,ref:a.ref+c.ref_c,cost:a.cost+c.cost_c,net:a.net+c.net}),
       {leads:0,orders:0,budget:0,marg:0,v:0,kc:0,ref:0,cost:0,net:0});
+    const activeCamps=camps.filter(c=>c.budget>0);
+    const avgRoas=activeCamps.length?activeCamps.reduce((a,c)=>a+c.roas,0)/activeCamps.length:0;
+    const activeCostCamps=camps.filter(c=>c.cost_c>0);
+    const avgRoi=activeCostCamps.length?activeCostCamps.reduce((a,c)=>a+c.roi,0)/activeCostCamps.length:0;
     return{...s,camps,S,avgM:S.v?(S.marg*b)/S.v:0,
-      roas:S.budget?(S.marg*b)/S.budget:0,roi:S.cost?S.net/S.cost:0};
+      roas:avgRoas,roi:avgRoi};
   });
   const T=srcs.reduce((a,s)=>({budget:a.budget+s.S.budget,marg:a.marg+s.S.marg,
     v:a.v+s.S.v,kc:a.kc+s.S.kc,ref:a.ref+s.S.ref,cost:a.cost+s.S.cost,net:a.net+s.S.net}),
