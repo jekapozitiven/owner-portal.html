@@ -250,9 +250,9 @@ function calc(w){
         cpa:c.orders?c.budget/c.orders:0};
     });
     const S=camps.reduce((a,c)=>({leads:a.leads+(c.leads||0),orders:a.orders+(c.orders||0),
-      budget:a.budget+(c.budget||0),marg:a.marg+c.m_full,v:a.v+c.v,
+      budget:a.budget+(c.budget||0),marg:a.marg+c.m_full,marg_real:a.marg_real+(c.m_full*b),v:a.v+c.v,
       kc:a.kc+c.kc_c,ref:a.ref+c.ref_c,cost:a.cost+c.cost_c,net:a.net+c.net}),
-      {leads:0,orders:0,budget:0,marg:0,v:0,kc:0,ref:0,cost:0,net:0});
+      {leads:0,orders:0,budget:0,marg:0,marg_real:0,v:0,kc:0,ref:0,cost:0,net:0});
     const activeCamps=camps.filter(c=>c.budget>0);
     const avgRoas=activeCamps.length?activeCamps.reduce((a,c)=>a+c.roas,0)/activeCamps.length:0;
     const activeCostCamps=camps.filter(c=>c.cost_c>0);
@@ -260,9 +260,9 @@ function calc(w){
     return{...s,camps,S,avgM:S.v?(S.marg*b)/S.v:0,
       roas:avgRoas,roi:avgRoi};
   });
-  const T=srcs.reduce((a,s)=>({budget:a.budget+s.S.budget,marg:a.marg+s.S.marg,
+  const T=srcs.reduce((a,s)=>({budget:a.budget+s.S.budget,marg:a.marg+s.S.marg,marg_real:a.marg_real+s.S.marg_real,
     v:a.v+s.S.v,kc:a.kc+s.S.kc,ref:a.ref+s.S.ref,cost:a.cost+s.S.cost,net:a.net+s.S.net}),
-    {budget:0,marg:0,v:0,kc:0,ref:0,cost:0,net:0});
+    {budget:0,marg:0,marg_real:0,v:0,kc:0,ref:0,cost:0,net:0});
   return{srcs,T,roas:T.budget?T.net/T.budget+1:0,roi:T.cost?T.net/T.cost:0};
 }
 
@@ -344,7 +344,7 @@ function renderWeek(){
     <div class="kpi"><div class="kpi-lbl">Чистий прибуток</div><div class="kpi-val" style="color:${nc(c.T.net)}">${fmt(c.T.net)} ₴${aw(c.T.net,pw?pw.T.net:null)}</div><div class="kpi-sub">до ставок і постійних витрат</div></div>
     <div class="kpi"><div class="kpi-lbl">ROAS</div><div class="kpi-val" style="color:${rc(c.roas)}">${fX(c.roas)}${aw(c.roas,pw?pw.roas:null,true)}</div><div class="kpi-sub">маржа×викуп / бюджет</div></div>
     <div class="kpi"><div class="kpi-lbl">ROI</div><div class="kpi-val" style="color:${roic(c.roi)}">${fP(c.roi)}</div><div class="kpi-sub">чистий / витрати</div></div>
-    <div class="kpi"><div class="kpi-lbl">Маржа (потенційна)</div><div class="kpi-val">${fmt(c.T.marg)} ₴</div><div class="kpi-sub">реальна: ${fmt(c.T.marg*0)} (з урах. викупу)</div></div>`;
+    <div class="kpi"><div class="kpi-lbl">Маржа (реальна)</div><div class="kpi-val">${fmt(c.T.marg_real)} ₴</div><div class="kpi-sub">потенційна (100% викуп): ${fmt(c.T.marg)} ₴</div></div>`;
 
   const sw=document.getElementById("srcs");sw.innerHTML="";
   c.srcs.forEach(s=>{
