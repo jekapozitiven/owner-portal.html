@@ -263,6 +263,12 @@ input[type=number]{-moz-appearance:textfield;}
       <label>Остання дата<input type="date" id="rep-de" onchange="repSetCustomDate()"></label>
     </div>
 
+    <div class="params">
+      <span class="p-lbl">Параметри:</span>
+      <div class="p-grp"><span>КЦ %</span><input id="rep-kc" type="number" step="0.1" value="7" onchange="repSetGlobalParam('kcPct',this.value)"></div>
+      <div class="p-grp"><span>Ціна повернення ₴</span><input id="rep-rc" type="number" value="100" onchange="repSetGlobalParam('returnCost',this.value)"></div>
+    </div>
+
     <!-- SOURCE FILTERS -->
     <div style="background:#fff;border:1px solid #E8E8E6;border-radius:10px;padding:12px 16px;margin-bottom:14px">
       <div style="font-size:11px;color:#999;font-weight:600;margin-bottom:8px">Групи:</div>
@@ -606,6 +612,8 @@ function openReports(){
   document.getElementById("home").style.display="none";
   document.getElementById("app-reports").style.display="block";
   if(!repSources.length) repLoadSourcesConfig();
+  document.getElementById("rep-kc").value = repParams.kcPct;
+  document.getElementById("rep-rc").value = repParams.returnCost;
   repRenderPeriodPills();
   repRenderSettingsTable();
   if(repRows.length){ repRenderAll(); }
@@ -660,6 +668,32 @@ function repSaveSettings(){
   repReload();
 }
 
+// ── параметри: КЦ%, ціна повернення (глобальні) + % викупу (per-shop) ──
+const REP_PARAMS_KEY = "bsrep:params";
+let repParams = {kcPct:7, returnCost:100, buyouts:{}};
+function repLoadParams(){
+  const saved = LS.get(REP_PARAMS_KEY);
+  if(saved) repParams = saved;
+}
+function repSaveParams(){
+  LS.set(REP_PARAMS_KEY, repParams);
+  if(window._repFbSaveParams) window._repFbSaveParams(repParams);
+}
+function repSetGlobalParam(field, val){
+  repParams[field] = parseFloat(val)||0;
+  repSaveParams();
+  repRenderAll();
+}
+function repGetBuyout(key){
+  return repParams.buyouts[key]!==undefined ? repParams.buyouts[key] : 65;
+}
+function repSetBuyout(key, val){
+  const v = parseFloat(val);
+  repParams.buyouts[key] = isNaN(v) ? 65 : v;
+  repSaveParams();
+  repRenderAll();
+}
+
 // ── парсинг чисел у форматі укр. таблиці ──────────────────
 function repParseNum(raw){
   if(raw===undefined||raw===null) return 0;
@@ -683,8 +717,7 @@ function repParseCsv(csvText, cfg){
   const headers = rows[hIdx].map(h=>String(h).trim());
   const col = name => headers.indexOf(name);
   const cBudget = col("Бюджет"), cLeads = col("Количество заявок"), cApprove = col("Апрув"),
-        cSales = col("Сумма продаж, грн"), cMargin = col("Общая маржа, грн"),
-        cNet = col("ЧИСТИЙ ПРИБУТОК"), cCosts = col("СУМА витрат"), cRoi = col("ROI%");
+        cMargin = col("Общая маржа, грн"), cNotCounted = col("Не враховуємо");
   const out = [];
   for(let i=hIdx+1;i<rows.length;i++){
     const r = rows[i];
@@ -698,10 +731,8 @@ function repParseCsv(csvText, cfg){
       budget: cBudget>=0?repParseNum(r[cBudget]):0,
       leads: cLeads>=0?repParseNum(r[cLeads]):0,
       approved: cApprove>=0?repParseNum(r[cApprove]):0,
-      sales: cSales>=0?repParseNum(r[cSales]):0,
-      margin: cMargin>=0?repParseNum(r[cMargin]):0,
-      net: cNet>=0?repParseNum(r[cNet]):0,
-      costs: cCosts>=0?repParseNum(r[cCosts]):0,
+      marginPotential: cMargin>=0?repParseNum(r[cMargin]):0,
+      notCounted: cNotCounted>=0?repParseNum(r[cNotCounted]):0,
     });
   }
   return out;
@@ -735,6 +766,8 @@ async function repReload(){
   }
   repLoading = false;
   if(st) st.textContent = errors.length ? ("⚠ Не вдалось: "+errors.join(", ")) : ("Оновлено "+new Date().toLocaleTimeString("uk-UA"));
+  document.getElementById("rep-kc").value = repParams.kcPct;
+  document.getElementById("rep-rc").value = repParams.returnCost;
   repRenderAll();
 }
 
@@ -810,62 +843,120 @@ function repFilteredRows(){
   });
 }
 
+// розрахунок повного набору метрик для масиву рядків одного магазину
+function repCalcShop(rows, buyoutPct){
+  const b = buyoutPct/100;
+  const raw = rows.reduce((a,r)=>({budget:a.budget+r.budget,leads:a.leads+r.leads,
+    approved:a.approved+r.approved,marginPotential:a.marginPotential+r.marginPotential,
+    notCounted:a.notCounted+r.notCounted}),
+    {budget:0,leads:0,approved:0,marginPotential:0,notCounted:0});
+  const realMargin = raw.marginPotential*b;
+  const picked = raw.approved*b;
+  const returns = raw.approved-picked;
+  const returnCost = returns*repParams.returnCost;
+  const kc = realMargin*(repParams.kcPct/100);
+  const costs = raw.budget+kc+returnCost;
+  const net = realMargin-costs;
+  return{
+    ...raw, buyoutPct, realMargin, picked, returns, returnCost, kc, costs, net,
+    roas: raw.budget?realMargin/raw.budget:0,
+    roi: costs?net/costs:0,
+    cpl: raw.leads?raw.budget/raw.leads:0,
+    cpa: raw.approved?raw.budget/raw.approved:0,
+    approvalRate: raw.leads?raw.approved/raw.leads*100:0,
+    pctBudgetOfMargin: realMargin?raw.budget/realMargin*100:0,
+    pctSalaryOfProfit: net?kc/net*100:0,
+  };
+}
+
 function repRenderAll(){
   repRenderGroupPills();
   repRenderSrcPills();
   const rows = repFilteredRows();
 
-  const T = rows.reduce((a,r)=>({budget:a.budget+r.budget,leads:a.leads+r.leads,approved:a.approved+r.approved,
-    sales:a.sales+r.sales,margin:a.margin+r.margin,net:a.net+r.net,costs:a.costs+r.costs}),
-    {budget:0,leads:0,approved:0,sales:0,margin:0,net:0,costs:0});
-  const roas = T.budget ? T.margin/T.budget : 0;
-  const roi = T.costs ? T.net/T.costs : 0;
+  // групуємо по магазину
+  const byShopRows = {};
+  rows.forEach(r=>{
+    const k = r.name+"|"+r.ch;
+    if(!byShopRows[k]) byShopRows[k] = [];
+    byShopRows[k].push(r);
+  });
+  const shopList = Object.entries(byShopRows).map(([key,shopRows])=>{
+    const buyoutPct = repGetBuyout(key);
+    const m = repCalcShop(shopRows, buyoutPct);
+    return {key, name:shopRows[0].name, ch:shopRows[0].ch, ...m};
+  }).sort((a,b)=>b.net-a.net);
+
+  // тотал = сума вже розрахованих по-магазинних метрик
+  const T = shopList.reduce((a,s)=>({budget:a.budget+s.budget,leads:a.leads+s.leads,
+    approved:a.approved+s.approved,marginPotential:a.marginPotential+s.marginPotential,
+    notCounted:a.notCounted+s.notCounted,realMargin:a.realMargin+s.realMargin,
+    kc:a.kc+s.kc,returnCost:a.returnCost+s.returnCost,costs:a.costs+s.costs,net:a.net+s.net}),
+    {budget:0,leads:0,approved:0,marginPotential:0,notCounted:0,realMargin:0,kc:0,returnCost:0,costs:0,net:0});
+  const roas = T.budget?T.realMargin/T.budget:0;
+  const roi = T.costs?T.net/T.costs:0;
+  const approvalRate = T.leads?T.approved/T.leads*100:0;
+  const pctBudgetOfMargin = T.realMargin?T.budget/T.realMargin*100:0;
+  const pctSalaryOfProfit = T.net?T.kc/T.net*100:0;
 
   document.getElementById("rep-kpis").innerHTML = `
     <div class="kpi"><div class="kpi-lbl">Бюджет</div><div class="kpi-val">${fmt(T.budget)} ₴</div><div class="kpi-sub">${rows.length} днів даних</div></div>
-    <div class="kpi"><div class="kpi-lbl">Заявки</div><div class="kpi-val">${fmt(T.leads)}</div><div class="kpi-sub">апрув: ${fmt(T.approved)}</div></div>
+    <div class="kpi"><div class="kpi-lbl">Заявки</div><div class="kpi-val">${fmt(T.leads)}</div><div class="kpi-sub">апрув: ${fmt(T.approved)} (${fP(approvalRate/100)})</div></div>
+    <div class="kpi"><div class="kpi-lbl">Маржа (реальна)</div><div class="kpi-val">${fmt(T.realMargin)} ₴</div><div class="kpi-sub">потенційна: ${fmt(T.marginPotential)} ₴</div></div>
     <div class="kpi"><div class="kpi-lbl">Чистий прибуток</div><div class="kpi-val" style="color:${nc(T.net)}">${fmt(T.net)} ₴</div></div>
     <div class="kpi"><div class="kpi-lbl">ROAS</div><div class="kpi-val" style="color:${rc(roas)}">${fX(roas)}</div></div>
     <div class="kpi"><div class="kpi-lbl">ROI</div><div class="kpi-val" style="color:${roic(roi)}">${fP(roi)}</div></div>
+    <div class="kpi"><div class="kpi-lbl">% бюджету від маржі</div><div class="kpi-val">${fP(pctBudgetOfMargin/100)}</div></div>
+    <div class="kpi"><div class="kpi-lbl">% ЗП від прибутку</div><div class="kpi-val">${fP(pctSalaryOfProfit/100)}</div></div>
   `;
-
-  // breakdown по кожному обраному магазину
-  const byShop = {};
-  rows.forEach(r=>{
-    const k = r.name+"|"+r.ch;
-    if(!byShop[k]) byShop[k] = {name:r.name,ch:r.ch,budget:0,leads:0,approved:0,sales:0,margin:0,net:0,costs:0};
-    byShop[k].budget+=r.budget; byShop[k].leads+=r.leads; byShop[k].approved+=r.approved;
-    byShop[k].sales+=r.sales; byShop[k].margin+=r.margin; byShop[k].net+=r.net; byShop[k].costs+=r.costs;
-  });
-  const shopList = Object.values(byShop).map(s=>({...s,roas:s.budget?s.margin/s.budget:0,roi:s.costs?s.net/s.costs:0}))
-    .sort((a,b)=>b.net-a.net);
 
   document.getElementById("rep-sources").innerHTML = shopList.map(s=>`
     <div class="rep-src-card">
-      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px">
         <span style="font-weight:700;font-size:15px">${s.name}</span>
         <span class="ch-btn ch-${s.ch==='Google'?'g':'p'}">${s.ch}</span>
+        <div class="buyout-wrap">Викуп<input type="number" value="${s.buyoutPct}" min="0" max="100"
+          onblur="repSetBuyout('${s.key}',this.value)"
+          onkeydown="if(event.key==='Enter'){repSetBuyout('${s.key}',this.value);this.blur();}">%</div>
         <div style="margin-left:auto;text-align:right">
           <div style="font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:700;color:${nc(s.net)}">${fmt(s.net)} ₴</div>
           <div style="font-size:11px;color:#999">ROAS ${fX(s.roas)} · ROI ${fP(s.roi)}</div>
         </div>
       </div>
-      <div style="display:flex;gap:18px;flex-wrap:wrap;font-size:12px;color:#999">
+      <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:#999;margin-bottom:6px">
         <span>Бюджет: <b style="color:#111;font-family:'JetBrains Mono',monospace">${fmt(s.budget)}</b></span>
         <span>Заявки: <b style="color:#111;font-family:'JetBrains Mono',monospace">${fmt(s.leads)}</b></span>
         <span>Апрув: <b style="color:#111;font-family:'JetBrains Mono',monospace">${fmt(s.approved)}</b></span>
-        <span>Продажі: <b style="color:#111;font-family:'JetBrains Mono',monospace">${fmt(s.sales)}</b></span>
-        <span>Маржа: <b style="color:#111;font-family:'JetBrains Mono',monospace">${fmt(s.margin)}</b></span>
+        <span>% Апрув: <b style="color:#111;font-family:'JetBrains Mono',monospace">${s.approvalRate.toFixed(1)}%</b></span>
+        <span>Ціна заявки: <b style="color:#111;font-family:'JetBrains Mono',monospace">${fmt(s.cpl)}</b></span>
+        <span>Ціна апрув: <b style="color:#111;font-family:'JetBrains Mono',monospace">${fmt(s.cpa)}</b></span>
+      </div>
+      <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:#999">
+        <span>Маржа (реальна): <b style="color:#111;font-family:'JetBrains Mono',monospace">${fmt(s.realMargin)}</b></span>
+        <span>Забрали: <b style="color:#111;font-family:'JetBrains Mono',monospace">${fmt(s.picked)}</b></span>
+        <span>Повернення: <b style="color:#111;font-family:'JetBrains Mono',monospace">${fmt(s.returns)}</b> (${fmt(s.returnCost)} ₴)</span>
+        <span>КЦ: <b style="color:#111;font-family:'JetBrains Mono',monospace">${fmt(s.kc)}</b></span>
+        <span>Витрати: <b style="color:#111;font-family:'JetBrains Mono',monospace">${fmt(s.costs)}</b></span>
+        <span>Не враховуємо: <b style="color:#111;font-family:'JetBrains Mono',monospace">${fmt(s.notCounted)}</b></span>
       </div>
     </div>
   `).join("") || '<p class="hint">Немає даних за обраний період і джерела.</p>';
 
-  // графік по днях (сума по всіх обраних)
+  // графік по днях — рахуємо чистий прибуток день-за-день з тим самим викуп% магазину
   const byDay = {};
   rows.forEach(r=>{
-    const k = r.date.toISOString().slice(0,10);
-    if(!byDay[k]) byDay[k] = {date:r.date,net:0};
-    byDay[k].net += r.net;
+    const key = r.name+"|"+r.ch;
+    const b = repGetBuyout(key)/100;
+    const realMarginDay = r.marginPotential*b;
+    const pickedDay = r.approved*b;
+    const returnsDay = r.approved-pickedDay;
+    const returnCostDay = returnsDay*repParams.returnCost;
+    const kcDay = realMarginDay*(repParams.kcPct/100);
+    const costsDay = r.budget+kcDay+returnCostDay;
+    const netDay = realMarginDay-costsDay;
+    const dk = r.date.toISOString().slice(0,10);
+    if(!byDay[dk]) byDay[dk] = {date:r.date,net:0};
+    byDay[dk].net += netDay;
   });
   const days = Object.values(byDay).sort((a,b)=>a.date-b.date);
   const maxAbs = Math.max(1,...days.map(d=>Math.abs(d.net)));
@@ -891,7 +982,8 @@ function repRenderAll(){
   }
 }
 
-// init конфігу одразу (без завантаження CSV, лише локально)
+repLoadParams();
+
 repLoadSourcesConfig();
 </script>
 
@@ -939,6 +1031,24 @@ repLoadSourcesConfig();
     } else { repFbLoaded = true; }
   });
   window._repFbSave = (data) => set(repDbRef, data).catch(e => console.warn("Reports FB error:", e));
+
+  // ── параметри звітів (КЦ%, ціна повернення, викуп%) ──
+  const repParamsDbRef = ref(db, "shop-reports/params");
+  let repParamsFbLoaded = false;
+  onValue(repParamsDbRef, (snap) => {
+    const val = snap.val();
+    if (val && !repParamsFbLoaded) {
+      repParamsFbLoaded = true;
+      repParams = val;
+      if(document.getElementById("app-reports") && document.getElementById("app-reports").style.display !== "none"){
+        const kcEl=document.getElementById("rep-kc"), rcEl=document.getElementById("rep-rc");
+        if(kcEl) kcEl.value = repParams.kcPct;
+        if(rcEl) rcEl.value = repParams.returnCost;
+        repRenderAll();
+      }
+    } else { repParamsFbLoaded = true; }
+  });
+  window._repFbSaveParams = (data) => set(repParamsDbRef, data).catch(e => console.warn("Reports params FB error:", e));
 </script>
 </body>
 </html>
