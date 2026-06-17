@@ -263,11 +263,7 @@ input[type=number]{-moz-appearance:textfield;}
       <label>Остання дата<input type="date" id="rep-de" onchange="repSetCustomDate()"></label>
     </div>
 
-    <div class="params">
-      <span class="p-lbl">Параметри:</span>
-      <div class="p-grp"><span>КЦ %</span><input id="rep-kc" type="number" step="0.1" value="7" onchange="repSetGlobalParam('kcPct',this.value)"></div>
-      <div class="p-grp"><span>Ціна повернення ₴</span><input id="rep-rc" type="number" value="100" onchange="repSetGlobalParam('returnCost',this.value)"></div>
-    </div>
+
 
     <!-- SOURCE FILTERS -->
     <div style="background:#fff;border:1px solid #E8E8E6;border-radius:10px;padding:12px 16px;margin-bottom:14px">
@@ -612,8 +608,6 @@ function openReports(){
   document.getElementById("home").style.display="none";
   document.getElementById("app-reports").style.display="block";
   if(!repSources.length) repLoadSourcesConfig();
-  document.getElementById("rep-kc").value = repParams.kcPct;
-  document.getElementById("rep-rc").value = repParams.returnCost;
   repRenderPeriodPills();
   repRenderSettingsTable();
   if(repRows.length){ repRenderAll(); }
@@ -668,21 +662,16 @@ function repSaveSettings(){
   repReload();
 }
 
-// ── параметри: КЦ%, ціна повернення (глобальні) + % викупу (per-shop) ──
+// ── параметри per-shop: викуп%, КЦ%, ціна повернення ──
 const REP_PARAMS_KEY = "bsrep:params";
-let repParams = {kcPct:7, returnCost:100, buyouts:{}};
+let repParams = {buyouts:{}, kc:{}, returnCost:{}};
 function repLoadParams(){
   const saved = LS.get(REP_PARAMS_KEY);
-  if(saved) repParams = saved;
+  if(saved) repParams = {buyouts:saved.buyouts||{}, kc:saved.kc||{}, returnCost:(saved.returnCost&&typeof saved.returnCost==='object')?saved.returnCost:{}};
 }
 function repSaveParams(){
   LS.set(REP_PARAMS_KEY, repParams);
   if(window._repFbSaveParams) window._repFbSaveParams(repParams);
-}
-function repSetGlobalParam(field, val){
-  repParams[field] = parseFloat(val)||0;
-  repSaveParams();
-  repRenderAll();
 }
 function repGetBuyout(key){
   return repParams.buyouts[key]!==undefined ? repParams.buyouts[key] : 65;
@@ -690,6 +679,24 @@ function repGetBuyout(key){
 function repSetBuyout(key, val){
   const v = parseFloat(val);
   repParams.buyouts[key] = isNaN(v) ? 65 : v;
+  repSaveParams();
+  repRenderAll();
+}
+function repGetKc(key){
+  return repParams.kc[key]!==undefined ? repParams.kc[key] : 7;
+}
+function repSetKc(key, val){
+  const v = parseFloat(val);
+  repParams.kc[key] = isNaN(v) ? 7 : v;
+  repSaveParams();
+  repRenderAll();
+}
+function repGetReturnCost(key){
+  return repParams.returnCost[key]!==undefined ? repParams.returnCost[key] : 100;
+}
+function repSetReturnCost(key, val){
+  const v = parseFloat(val);
+  repParams.returnCost[key] = isNaN(v) ? 100 : v;
   repSaveParams();
   repRenderAll();
 }
@@ -766,8 +773,6 @@ async function repReload(){
   }
   repLoading = false;
   if(st) st.textContent = errors.length ? ("⚠ Не вдалось: "+errors.join(", ")) : ("Оновлено "+new Date().toLocaleTimeString("uk-UA"));
-  document.getElementById("rep-kc").value = repParams.kcPct;
-  document.getElementById("rep-rc").value = repParams.returnCost;
   repRenderAll();
 }
 
@@ -844,7 +849,7 @@ function repFilteredRows(){
 }
 
 // розрахунок повного набору метрик для масиву рядків одного магазину
-function repCalcShop(rows, buyoutPct){
+function repCalcShop(rows, buyoutPct, kcPct, returnCostUnit){
   const b = buyoutPct/100;
   const raw = rows.reduce((a,r)=>({budget:a.budget+r.budget,leads:a.leads+r.leads,
     approved:a.approved+r.approved,marginPotential:a.marginPotential+r.marginPotential,
@@ -853,12 +858,12 @@ function repCalcShop(rows, buyoutPct){
   const realMargin = raw.marginPotential*b;
   const picked = raw.approved*b;
   const returns = raw.approved-picked;
-  const returnCost = returns*repParams.returnCost;
-  const kc = realMargin*(repParams.kcPct/100);
+  const returnCost = returns*returnCostUnit;
+  const kc = realMargin*(kcPct/100);
   const costs = raw.budget+kc+returnCost;
   const net = realMargin-costs;
   return{
-    ...raw, buyoutPct, realMargin, picked, returns, returnCost, kc, costs, net,
+    ...raw, buyoutPct, kcPct, returnCostUnit, realMargin, picked, returns, returnCost, kc, costs, net,
     roas: raw.budget?realMargin/raw.budget:0,
     roi: costs?net/costs:0,
     cpl: raw.leads?raw.budget/raw.leads:0,
@@ -883,7 +888,9 @@ function repRenderAll(){
   });
   const shopList = Object.entries(byShopRows).map(([key,shopRows])=>{
     const buyoutPct = repGetBuyout(key);
-    const m = repCalcShop(shopRows, buyoutPct);
+    const kcPct = repGetKc(key);
+    const returnCostUnit = repGetReturnCost(key);
+    const m = repCalcShop(shopRows, buyoutPct, kcPct, returnCostUnit);
     return {key, name:shopRows[0].name, ch:shopRows[0].ch, ...m};
   }).sort((a,b)=>b.net-a.net);
 
@@ -902,25 +909,29 @@ function repRenderAll(){
   document.getElementById("rep-kpis").innerHTML = `
     <div class="kpi"><div class="kpi-lbl">Бюджет</div><div class="kpi-val">${fmt(T.budget)} ₴</div><div class="kpi-sub">${rows.length} днів даних</div></div>
     <div class="kpi"><div class="kpi-lbl">Заявки</div><div class="kpi-val">${fmt(T.leads)}</div><div class="kpi-sub">апрув: ${fmt(T.approved)} (${fP(approvalRate/100)})</div></div>
-    <div class="kpi"><div class="kpi-lbl">Маржа (реальна)</div><div class="kpi-val">${fmt(T.realMargin)} ₴</div><div class="kpi-sub">потенційна: ${fmt(T.marginPotential)} ₴</div></div>
-    <div class="kpi"><div class="kpi-lbl">Чистий прибуток</div><div class="kpi-val" style="color:${nc(T.net)}">${fmt(T.net)} ₴</div></div>
-    <div class="kpi"><div class="kpi-lbl">ROAS</div><div class="kpi-val" style="color:${rc(roas)}">${fX(roas)}</div></div>
-    <div class="kpi"><div class="kpi-lbl">ROI</div><div class="kpi-val" style="color:${roic(roi)}">${fP(roi)}</div></div>
+    <div class="kpi"><div class="kpi-lbl">Маржа (реальна)</div><div class="kpi-val">${fmt(T.realMargin)} ₴</div><div class="kpi-sub">100% викуп: ${fmt(T.marginPotential)} ₴</div></div>
+    <div class="kpi"><div class="kpi-lbl">Чистий прибуток</div><div class="kpi-val" style="color:${nc(T.net)}">${fmt(T.net)} ₴</div><div class="kpi-sub">ROAS <b style="color:${rc(roas)}">${fX(roas)}</b> · ROI <b style="color:${roic(roi)}">${fP(roi)}</b></div></div>
     <div class="kpi"><div class="kpi-lbl">% бюджету від маржі</div><div class="kpi-val">${fP(pctBudgetOfMargin/100)}</div></div>
     <div class="kpi"><div class="kpi-lbl">% ЗП від прибутку</div><div class="kpi-val">${fP(pctSalaryOfProfit/100)}</div></div>
   `;
 
   document.getElementById("rep-sources").innerHTML = shopList.map(s=>`
     <div class="rep-src-card">
-      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px">
         <span style="font-weight:700;font-size:15px">${s.name}</span>
         <span class="ch-btn ch-${s.ch==='Google'?'g':'p'}">${s.ch}</span>
         <div class="buyout-wrap">Викуп<input type="number" value="${s.buyoutPct}" min="0" max="100"
           onblur="repSetBuyout('${s.key}',this.value)"
           onkeydown="if(event.key==='Enter'){repSetBuyout('${s.key}',this.value);this.blur();}">%</div>
+        <div class="buyout-wrap">КЦ<input type="number" value="${s.kcPct}" min="0" max="100"
+          onblur="repSetKc('${s.key}',this.value)"
+          onkeydown="if(event.key==='Enter'){repSetKc('${s.key}',this.value);this.blur();}">%</div>
+        <div class="buyout-wrap">Повернення<input type="number" value="${s.returnCostUnit}" min="0"
+          onblur="repSetReturnCost('${s.key}',this.value)"
+          onkeydown="if(event.key==='Enter'){repSetReturnCost('${s.key}',this.value);this.blur();}">₴</div>
         <div style="margin-left:auto;text-align:right">
           <div style="font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:700;color:${nc(s.net)}">${fmt(s.net)} ₴</div>
-          <div style="font-size:11px;color:#999">ROAS ${fX(s.roas)} · ROI ${fP(s.roi)}</div>
+          <div style="font-size:11px;color:#999">ROAS <b style="color:${rc(s.roas)}">${fX(s.roas)}</b> · ROI <b style="color:${roic(s.roi)}">${fP(s.roi)}</b></div>
         </div>
       </div>
       <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:#999;margin-bottom:6px">
@@ -932,7 +943,7 @@ function repRenderAll(){
         <span>Ціна апрув: <b style="color:#111;font-family:'JetBrains Mono',monospace">${fmt(s.cpa)}</b></span>
       </div>
       <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:#999">
-        <span>Маржа (реальна): <b style="color:#111;font-family:'JetBrains Mono',monospace">${fmt(s.realMargin)}</b></span>
+        <span>Маржа (реальна): <b style="color:#111;font-family:'JetBrains Mono',monospace">${fmt(s.realMargin)}</b> <span style="color:#BBB">(100% викуп: ${fmt(s.marginPotential)})</span></span>
         <span>Забрали: <b style="color:#111;font-family:'JetBrains Mono',monospace">${fmt(s.picked)}</b></span>
         <span>Повернення: <b style="color:#111;font-family:'JetBrains Mono',monospace">${fmt(s.returns)}</b> (${fmt(s.returnCost)} ₴)</span>
         <span>КЦ: <b style="color:#111;font-family:'JetBrains Mono',monospace">${fmt(s.kc)}</b></span>
@@ -942,16 +953,18 @@ function repRenderAll(){
     </div>
   `).join("") || '<p class="hint">Немає даних за обраний період і джерела.</p>';
 
-  // графік по днях — рахуємо чистий прибуток день-за-день з тим самим викуп% магазину
+  // графік по днях — рахуємо чистий прибуток день-за-день з власним викуп%/КЦ%/повернення кожного магазину
   const byDay = {};
   rows.forEach(r=>{
     const key = r.name+"|"+r.ch;
     const b = repGetBuyout(key)/100;
+    const kcPctDay = repGetKc(key);
+    const returnCostDayUnit = repGetReturnCost(key);
     const realMarginDay = r.marginPotential*b;
     const pickedDay = r.approved*b;
     const returnsDay = r.approved-pickedDay;
-    const returnCostDay = returnsDay*repParams.returnCost;
-    const kcDay = realMarginDay*(repParams.kcPct/100);
+    const returnCostDay = returnsDay*returnCostDayUnit;
+    const kcDay = realMarginDay*(kcPctDay/100);
     const costsDay = r.budget+kcDay+returnCostDay;
     const netDay = realMarginDay-costsDay;
     const dk = r.date.toISOString().slice(0,10);
@@ -961,22 +974,24 @@ function repRenderAll(){
   const days = Object.values(byDay).sort((a,b)=>a.date-b.date);
   const maxAbs = Math.max(1,...days.map(d=>Math.abs(d.net)));
   const fmtDayLbl = d => String(d.getDate()).padStart(2,"0")+"."+String(d.getMonth()+1).padStart(2,"0");
+  const fmtK = n => Math.abs(n)>=1000 ? (n/1000).toFixed(1).replace(".0","")+"к" : Math.round(n).toString();
 
   if(days.length===0){
     document.getElementById("rep-chart").innerHTML = '<p class="hint">Немає даних для графіку.</p>';
   } else {
     document.getElementById("rep-chart").innerHTML = `
-      <div style="display:flex;align-items:flex-end;gap:3px;height:120px;border-bottom:2px solid #F0F0EE;overflow-x:auto">
+      <div style="display:flex;align-items:flex-end;gap:3px;height:150px;border-bottom:2px solid #F0F0EE;overflow-x:auto">
         ${days.map(d=>{
           const pct = Math.max(Math.abs(d.net)/maxAbs*100,3);
           const pos = d.net>=0;
-          return `<div style="flex:1;min-width:8px;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%">
+          return `<div style="flex:1;min-width:22px;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%">
+            <div style="font-size:8px;font-weight:700;color:${pos?'#0E7C5A':'#C2453B'};margin-bottom:2px;white-space:nowrap">${fmtK(d.net)}</div>
             <div title="${fmtDayLbl(d.date)}: ${fmt(d.net)} ₴" style="width:80%;background:${pos?'#0E7C5A':'#C2453B'};border-radius:3px 3px 0 0;height:${pct}%;min-height:3px;opacity:.85"></div>
           </div>`;
         }).join("")}
       </div>
       <div style="display:flex;gap:3px;margin-top:6px;overflow-x:auto">
-        ${days.map(d=>`<div style="flex:1;min-width:8px;text-align:center;font-size:8px;color:#BBB">${fmtDayLbl(d.date)}</div>`).join("")}
+        ${days.map(d=>`<div style="flex:1;min-width:22px;text-align:center;font-size:8px;color:#BBB">${fmtDayLbl(d.date)}</div>`).join("")}
       </div>
     `;
   }
@@ -1039,11 +1054,8 @@ repLoadSourcesConfig();
     const val = snap.val();
     if (val && !repParamsFbLoaded) {
       repParamsFbLoaded = true;
-      repParams = val;
+      repParams = {buyouts:val.buyouts||{}, kc:val.kc||{}, returnCost:(val.returnCost&&typeof val.returnCost==='object')?val.returnCost:{}};
       if(document.getElementById("app-reports") && document.getElementById("app-reports").style.display !== "none"){
-        const kcEl=document.getElementById("rep-kc"), rcEl=document.getElementById("rep-rc");
-        if(kcEl) kcEl.value = repParams.kcPct;
-        if(rcEl) rcEl.value = repParams.returnCost;
         repRenderAll();
       }
     } else { repParamsFbLoaded = true; }
