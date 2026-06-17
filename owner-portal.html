@@ -305,7 +305,7 @@ const mLbl=ym=>{const ms=["Січень","Лютий","Березень","Кві
 const cw=()=>weeks.find(w=>w.id===cur)||null;
 const fmt=n=>(!n&&n!==0)?"—":Math.round(n).toLocaleString("uk-UA");
 const fX=n=>isNaN(n)||!isFinite(n)?"—":n.toFixed(2)+"x";
-const fP=n=>isNaN(n)||!isFinite(n)?"—":Math.round(n*100)+"%";
+const fP=n=>isNaN(n)||!isFinite(n)?"—":(n*100).toFixed(1).replace(".",",")+"%";
 const nc=v=>v<=5000?"#C2453B":v<=7000?"#F97316":v<=12000?"#CA8A04":"#0E7C5A";
 const rc=v=>v>=2.5?"#0E7C5A":v>=1.7?"#CA8A04":v>=1.3?"#F97316":"#C2453B";
 const roic=v=>v>=1.0?"#7C3AED":v>=0.75?"#0E7C5A":v>=0.60?"#CA8A04":v>=0.50?"#F97316":"#C2453B";
@@ -985,7 +985,7 @@ function repRenderAll(){
           const pct = Math.max(Math.abs(d.net)/maxAbs*100,3);
           const pos = d.net>=0;
           return `<div style="flex:1;min-width:22px;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%">
-            <div style="font-size:8px;font-weight:700;color:${pos?'#0E7C5A':'#C2453B'};margin-bottom:2px;white-space:nowrap">${fmtK(d.net)}</div>
+            <div style="font-size:11px;font-weight:700;color:#111;margin-bottom:3px;white-space:nowrap">${fmtK(d.net)}</div>
             <div title="${fmtDayLbl(d.date)}: ${fmt(d.net)} ₴" style="width:80%;background:${pos?'#0E7C5A':'#C2453B'};border-radius:3px 3px 0 0;height:${pct}%;min-height:3px;opacity:.85"></div>
           </div>`;
         }).join("")}
