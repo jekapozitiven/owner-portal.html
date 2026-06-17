@@ -51,6 +51,12 @@ body{background:#F7F7F5;color:#111;font-family:'Inter',-apple-system,sans-serif;
 /* WEEK BAR */
 .wbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px;}
 .wpill{border:1px solid #E0E0DE;background:#fff;color:#999;padding:6px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;transition:.15s;}
+.rep-chip{border:1px solid #E0E0DE;background:#fff;color:#999;padding:6px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;transition:.15s;}
+.rep-chip.on{background:#111;color:#fff;border-color:#111;}
+.btn-primary{background:#111!important;color:#fff!important;border-color:#111!important;}
+.rep-src-card{background:#fff;border:1px solid #E8E8E6;border-radius:14px;padding:16px 18px;margin-bottom:10px;}
+.rep-set-inp{background:#F7F7F5;border:1px solid #E5E5E3;border-radius:6px;padding:5px 8px;font-size:12px;font-family:inherit;outline:none;width:100%;}
+.rep-set-inp:focus{border-color:#111;background:#fff;}
 .wpill.on{background:#111;color:#fff;border-color:#111;}
 
 /* DATE ROW */
@@ -130,6 +136,7 @@ input[type=number]{-moz-appearance:textfield;}
 .hint{font-size:11px;color:#AAA;text-align:center;margin-top:16px;}
 .aw{font-size:11px;font-weight:700;margin-left:5px;}
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 </head>
 <body>
 
@@ -145,6 +152,13 @@ input[type=number]{-moz-appearance:textfield;}
       <span class="hcard-icon">📊</span>
       <div class="hcard-title">Трекер реклами</div>
       <div class="hcard-desc">Щотижневий аналіз по кампаніях і джерелах. Бюджет, маржа, ROAS, ROI, динаміка.</div>
+      <div class="badge-active">Активно</div>
+    </div>
+    <div class="hcard" onclick="openReports()">
+      <span class="hcard-arrow">↗</span>
+      <span class="hcard-icon">🏬</span>
+      <div class="hcard-title">Звіти по магазинах</div>
+      <div class="hcard-desc">Дані напряму з Google Таблиць по кожному магазину. Бюджет, заявки, маржа, ROAS, ROI за будь-який період.</div>
       <div class="badge-active">Активно</div>
     </div>
     <div class="hcard hcard-soon">
@@ -205,6 +219,68 @@ input[type=number]{-moz-appearance:textfield;}
       <p class="hint">Сині заголовки — вводиш ти. Маржа вводиться як потенційна (100% викуп), реальна = маржа × викуп%. Дані синхронізуються через Firebase.</p>
     </div>
     <div id="pane-stats" style="display:none"><div id="stats"></div></div>
+  </div>
+</div>
+
+<!-- ══ ЗВІТИ ПО МАГАЗИНАХ ══════════════════════════════════ -->
+<div id="app-reports">
+  <div class="app-bar">
+    <button class="back" onclick="goHome()">← На головну</button>
+    <div class="app-logo">BBB CLUB <em>//</em></div>
+    <div class="app-title">Звіти по магазинах</div>
+    <div class="bar-right">
+      <span id="rep-status" style="font-size:11px;color:#999"></span>
+      <button class="btn" onclick="repReload()">🔄 Оновити дані</button>
+      <button class="btn" onclick="repToggleSettings()">⚙ Джерела</button>
+    </div>
+  </div>
+  <div class="main">
+
+    <!-- SETTINGS PANEL -->
+    <div id="rep-settings" style="display:none;background:#fff;border:1px solid #E8E8E6;border-radius:12px;padding:16px 18px;margin-bottom:16px">
+      <div style="font-size:13px;font-weight:700;margin-bottom:10px">Джерела даних (Google Таблиці)</div>
+      <div class="scroll"><table>
+        <thead><tr>
+          <th style="text-align:left">Назва</th><th style="text-align:left">Канал</th>
+          <th style="text-align:left">Sheet ID</th><th style="text-align:left">GID</th>
+          <th>Місяць</th><th>Рік</th><th></th>
+        </tr></thead>
+        <tbody id="rep-settings-body"></tbody>
+      </table></div>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button class="btn" onclick="repAddSource()">+ Додати джерело</button>
+        <button class="btn btn-primary" style="background:#111;color:#fff" onclick="repSaveSettings()">💾 Зберегти і оновити</button>
+      </div>
+      <p class="hint" style="margin-top:10px">Sheet ID і GID бери з посилання таблиці: .../d/<b>SHEET_ID</b>/edit?gid=<b>GID</b>. Коли почнеться новий місяць — додай нове джерело з новим GID, стара назва магазину збереже історію.</p>
+    </div>
+
+    <!-- PERIOD -->
+    <div class="wbar">
+      <div id="rep-period-pills"></div>
+    </div>
+    <div class="date-row" id="rep-custom-row" style="display:none">
+      <label>Перша дата<input type="date" id="rep-ds" onchange="repSetCustomDate()"></label>
+      <label>Остання дата<input type="date" id="rep-de" onchange="repSetCustomDate()"></label>
+    </div>
+
+    <!-- SOURCE FILTERS -->
+    <div style="background:#fff;border:1px solid #E8E8E6;border-radius:10px;padding:12px 16px;margin-bottom:14px">
+      <div style="font-size:11px;color:#999;font-weight:600;margin-bottom:8px">Групи:</div>
+      <div class="sf" style="margin-bottom:10px" id="rep-group-pills"></div>
+      <div style="font-size:11px;color:#999;font-weight:600;margin-bottom:8px">Магазини:</div>
+      <div class="sf" id="rep-src-pills"></div>
+    </div>
+
+    <div class="kpis" id="rep-kpis"></div>
+
+    <div id="rep-sources"></div>
+
+    <div class="sb" style="padding:20px;margin-top:4px" id="rep-chart-card">
+      <div style="font-size:13px;font-weight:700;margin-bottom:16px">📈 Чистий прибуток по днях</div>
+      <div id="rep-chart"></div>
+    </div>
+
+    <p class="hint">Дані тягнуться напряму з Google Таблиць (CSV). Натисни «Оновити дані» щоб підвантажити свіжі цифри.</p>
   </div>
 </div>
 
@@ -498,6 +574,327 @@ init();
 </script>
 
 <!-- Firebase -->
+<script>
+// ══ ЗВІТИ ПО МАГАЗИНАХ — окремий модуль, власні префікси rep* ══
+const REP_LS_KEY = "bsrep:sources";
+const REP_DEFAULT_SOURCES = [
+  {id:1,name:"Black-street",ch:"Google",sheetId:"1OeM4faAz7Gc-00bO1OttnC_jPwBQjO_42pxJHEONoC8",gid:"1147939529",year:2026,month:6},
+  {id:2,name:"Bonna-shop",ch:"Google",sheetId:"1OeM4faAz7Gc-00bO1OttnC_jPwBQjO_42pxJHEONoC8",gid:"1048548467",year:2026,month:6},
+  {id:3,name:"Blink",ch:"Google",sheetId:"13uQBWfKrFwOUnDlP-9EkP3nmQXatMco-S_RvLfQhWSs",gid:"1150148191",year:2026,month:6},
+  {id:4,name:"Prom Black-street",ch:"Prom",sheetId:"1OeM4faAz7Gc-00bO1OttnC_jPwBQjO_42pxJHEONoC8",gid:"1338612064",year:2026,month:6},
+  {id:5,name:"Prom Bonna-shop",ch:"Prom",sheetId:"1OeM4faAz7Gc-00bO1OttnC_jPwBQjO_42pxJHEONoC8",gid:"1387015403",year:2026,month:6},
+  {id:6,name:"Prom Core22",ch:"Prom",sheetId:"1OeM4faAz7Gc-00bO1OttnC_jPwBQjO_42pxJHEONoC8",gid:"1924395148",year:2026,month:6},
+];
+
+let repSources = [];
+let repRows = [];          // всі рядки з усіх джерел, з повною датою
+let repSelKeys = new Set(); // обрані "name|ch"
+let repPeriod = "month";    // today | 7d | month | all | custom
+let repCustomStart = null, repCustomEnd = null;
+let repLoading = false;
+
+function repLoadSourcesConfig(){
+  const saved = LS.get(REP_LS_KEY);
+  repSources = (saved && saved.length) ? saved : JSON.parse(JSON.stringify(REP_DEFAULT_SOURCES));
+}
+function repSaveSourcesConfig(){
+  LS.set(REP_LS_KEY, repSources);
+  if(window._repFbSave) window._repFbSave(repSources);
+}
+
+function openReports(){
+  document.getElementById("home").style.display="none";
+  document.getElementById("app-reports").style.display="block";
+  if(!repSources.length) repLoadSourcesConfig();
+  repRenderPeriodPills();
+  repRenderSettingsTable();
+  if(repRows.length){ repRenderAll(); }
+  else { repReload(); }
+}
+
+// гачок у спільну goHome — ховаємо також наш екран
+const _origGoHome = window.goHome;
+window.goHome = function(){
+  document.getElementById("app-reports").style.display="none";
+  if(_origGoHome) _origGoHome(); else document.getElementById("home").style.display="block";
+};
+
+function repToggleSettings(){
+  const el = document.getElementById("rep-settings");
+  el.style.display = el.style.display==="none" ? "block" : "none";
+}
+
+function repAddSource(){
+  const nid = Math.max(0,...repSources.map(s=>s.id))+1;
+  const now = new Date();
+  repSources.push({id:nid,name:"Новий магазин",ch:"Google",sheetId:"",gid:"",year:now.getFullYear(),month:now.getMonth()+1});
+  repRenderSettingsTable();
+}
+function repDelSource(id){
+  repSources = repSources.filter(s=>s.id!==id);
+  repRenderSettingsTable();
+}
+function repSetField(id,field,val){
+  const s = repSources.find(x=>x.id===id); if(!s) return;
+  s[field] = (field==="year"||field==="month") ? (parseInt(val)||0) : val;
+}
+function repRenderSettingsTable(){
+  const body = document.getElementById("rep-settings-body");
+  if(!body) return;
+  body.innerHTML = repSources.map(s=>`<tr>
+    <td><input class="rep-set-inp" style="width:140px" value="${s.name}" onchange="repSetField(${s.id},'name',this.value)"></td>
+    <td><select class="rep-set-inp" style="width:90px" onchange="repSetField(${s.id},'ch',this.value)">
+      <option value="Google" ${s.ch==='Google'?'selected':''}>Google</option>
+      <option value="Prom" ${s.ch==='Prom'?'selected':''}>Prom</option>
+    </select></td>
+    <td><input class="rep-set-inp" style="width:240px;font-family:monospace;font-size:11px" value="${s.sheetId}" onchange="repSetField(${s.id},'sheetId',this.value)"></td>
+    <td><input class="rep-set-inp" style="width:110px;font-family:monospace;font-size:11px" value="${s.gid}" onchange="repSetField(${s.id},'gid',this.value)"></td>
+    <td><input class="rep-set-inp" type="number" style="width:50px" value="${s.month}" onchange="repSetField(${s.id},'month',this.value)"></td>
+    <td><input class="rep-set-inp" type="number" style="width:64px" value="${s.year}" onchange="repSetField(${s.id},'year',this.value)"></td>
+    <td><button class="del" style="opacity:.5" onclick="repDelSource(${s.id})">✕</button></td>
+  </tr>`).join("");
+}
+function repSaveSettings(){
+  repSaveSourcesConfig();
+  document.getElementById("rep-settings").style.display="none";
+  repReload();
+}
+
+// ── парсинг чисел у форматі укр. таблиці ──────────────────
+function repParseNum(raw){
+  if(raw===undefined||raw===null) return 0;
+  let s = String(raw).trim();
+  if(!s || s.indexOf("#DIV") !== -1 || s.indexOf("#REF") !== -1 || s.indexOf("#N/A") !== -1) return 0;
+  s = s.replace(/грн\.?/gi,"").replace(/\u00A0/g," ").replace(/%/g,"").trim();
+  s = s.replace(/\s/g,"").replace(",", ".");
+  const n = parseFloat(s);
+  return isNaN(n) ? 0 : n;
+}
+function repFindHeaderRow(rows){
+  for(let i=0;i<Math.min(rows.length,6);i++){
+    if(rows[i] && String(rows[i][0]).trim()==="Дата") return i;
+  }
+  return 1; // запасний варіант
+}
+function repParseCsv(csvText, cfg){
+  const parsed = Papa.parse(csvText.trim(), {skipEmptyLines:false});
+  const rows = parsed.data;
+  const hIdx = repFindHeaderRow(rows);
+  const headers = rows[hIdx].map(h=>String(h).trim());
+  const col = name => headers.indexOf(name);
+  const cBudget = col("Бюджет"), cLeads = col("Количество заявок"), cApprove = col("Апрув"),
+        cSales = col("Сумма продаж, грн"), cMargin = col("Общая маржа, грн"),
+        cNet = col("ЧИСТИЙ ПРИБУТОК"), cCosts = col("СУМА витрат"), cRoi = col("ROI%");
+  const out = [];
+  for(let i=hIdx+1;i<rows.length;i++){
+    const r = rows[i];
+    if(!r || !r[0]) continue;
+    const m = String(r[0]).trim().match(/^(\d{1,2})\.(\d{1,2})$/);
+    if(!m) continue;
+    const day = parseInt(m[1]), mon = parseInt(m[2]);
+    const date = new Date(cfg.year, mon-1, day);
+    out.push({
+      date, name:cfg.name, ch:cfg.ch,
+      budget: cBudget>=0?repParseNum(r[cBudget]):0,
+      leads: cLeads>=0?repParseNum(r[cLeads]):0,
+      approved: cApprove>=0?repParseNum(r[cApprove]):0,
+      sales: cSales>=0?repParseNum(r[cSales]):0,
+      margin: cMargin>=0?repParseNum(r[cMargin]):0,
+      net: cNet>=0?repParseNum(r[cNet]):0,
+      costs: cCosts>=0?repParseNum(r[cCosts]):0,
+    });
+  }
+  return out;
+}
+
+async function repReload(){
+  if(repLoading) return;
+  repLoading = true;
+  const st = document.getElementById("rep-status");
+  if(st) st.textContent = "Завантаження...";
+  let allRows = [];
+  let errors = [];
+  for(const cfg of repSources){
+    if(!cfg.sheetId || !cfg.gid) continue;
+    const url = "https://docs.google.com/spreadsheets/d/"+cfg.sheetId+"/export?format=csv&gid="+cfg.gid;
+    try{
+      const res = await fetch(url);
+      if(!res.ok) throw new Error("HTTP "+res.status);
+      const text = await res.text();
+      const rows = repParseCsv(text, cfg);
+      allRows = allRows.concat(rows);
+    }catch(e){
+      console.warn("Reports load error for", cfg.name, e);
+      errors.push(cfg.name);
+    }
+  }
+  repRows = allRows;
+  // ініціалізуємо вибір джерел якщо порожній
+  if(repSelKeys.size===0){
+    repSources.forEach(s=>repSelKeys.add(s.name+"|"+s.ch));
+  }
+  repLoading = false;
+  if(st) st.textContent = errors.length ? ("⚠ Не вдалось: "+errors.join(", ")) : ("Оновлено "+new Date().toLocaleTimeString("uk-UA"));
+  repRenderAll();
+}
+
+function repRenderPeriodPills(){
+  const periods = [
+    {k:"today",label:"Сьогодні"},
+    {k:"7d",label:"7 днів"},
+    {k:"month",label:"Цей місяць"},
+    {k:"all",label:"Весь період"},
+    {k:"custom",label:"Свій діапазон"},
+  ];
+  document.getElementById("rep-period-pills").innerHTML = periods.map(p=>
+    `<button class="wpill${repPeriod===p.k?" on":""}" onclick="repSetPeriod('${p.k}')">${p.label}</button>`
+  ).join("");
+  document.getElementById("rep-custom-row").style.display = repPeriod==="custom" ? "" : "none";
+}
+function repSetPeriod(p){
+  repPeriod = p;
+  repRenderPeriodPills();
+  repRenderAll();
+}
+function repSetCustomDate(){
+  repCustomStart = document.getElementById("rep-ds").value || null;
+  repCustomEnd = document.getElementById("rep-de").value || null;
+  repRenderAll();
+}
+function repGetDateRange(){
+  const today = new Date(); today.setHours(0,0,0,0);
+  if(repPeriod==="today") return [today, today];
+  if(repPeriod==="7d"){ const s=new Date(today); s.setDate(s.getDate()-6); return [s, today]; }
+  if(repPeriod==="month"){ const s=new Date(today.getFullYear(), today.getMonth(),1); const e=new Date(today.getFullYear(), today.getMonth()+1,0); return [s,e]; }
+  if(repPeriod==="custom" && repCustomStart && repCustomEnd) return [new Date(repCustomStart), new Date(repCustomEnd)];
+  return [null,null]; // all
+}
+
+function repRenderGroupPills(){
+  const groups = [
+    {k:"all",label:"Усі"},
+    {k:"Google",label:"Сайти (Google)"},
+    {k:"Prom",label:"Prom"},
+  ];
+  document.getElementById("rep-group-pills").innerHTML = groups.map(g=>
+    `<button class="rep-chip" onclick="repApplyGroup('${g.k}')">${g.label}</button>`
+  ).join("");
+}
+function repApplyGroup(g){
+  repSelKeys = new Set();
+  repSources.forEach(s=>{
+    if(g==="all" || s.ch===g) repSelKeys.add(s.name+"|"+s.ch);
+  });
+  repRenderAll();
+}
+function repToggleSrc(key){
+  repSelKeys.has(key) ? repSelKeys.delete(key) : repSelKeys.add(key);
+  repRenderAll();
+}
+function repRenderSrcPills(){
+  const keys = [...new Set(repSources.map(s=>s.name+"|"+s.ch))];
+  document.getElementById("rep-src-pills").innerHTML = keys.map(k=>{
+    const [name,ch] = k.split("|");
+    return `<button class="rep-chip${repSelKeys.has(k)?" on":""}" onclick="repToggleSrc('${k}')">${name} · ${ch}</button>`;
+  }).join("");
+}
+
+function repFilteredRows(){
+  const [start,end] = repGetDateRange();
+  return repRows.filter(r=>{
+    const key = r.name+"|"+r.ch;
+    if(!repSelKeys.has(key)) return false;
+    if(start && r.date < start) return false;
+    if(end){ const e=new Date(end); e.setHours(23,59,59,999); if(r.date > e) return false; }
+    return true;
+  });
+}
+
+function repRenderAll(){
+  repRenderGroupPills();
+  repRenderSrcPills();
+  const rows = repFilteredRows();
+
+  const T = rows.reduce((a,r)=>({budget:a.budget+r.budget,leads:a.leads+r.leads,approved:a.approved+r.approved,
+    sales:a.sales+r.sales,margin:a.margin+r.margin,net:a.net+r.net,costs:a.costs+r.costs}),
+    {budget:0,leads:0,approved:0,sales:0,margin:0,net:0,costs:0});
+  const roas = T.budget ? T.margin/T.budget : 0;
+  const roi = T.costs ? T.net/T.costs : 0;
+
+  document.getElementById("rep-kpis").innerHTML = `
+    <div class="kpi"><div class="kpi-lbl">Бюджет</div><div class="kpi-val">${fmt(T.budget)} ₴</div><div class="kpi-sub">${rows.length} днів даних</div></div>
+    <div class="kpi"><div class="kpi-lbl">Заявки</div><div class="kpi-val">${fmt(T.leads)}</div><div class="kpi-sub">апрув: ${fmt(T.approved)}</div></div>
+    <div class="kpi"><div class="kpi-lbl">Чистий прибуток</div><div class="kpi-val" style="color:${nc(T.net)}">${fmt(T.net)} ₴</div></div>
+    <div class="kpi"><div class="kpi-lbl">ROAS</div><div class="kpi-val" style="color:${rc(roas)}">${fX(roas)}</div></div>
+    <div class="kpi"><div class="kpi-lbl">ROI</div><div class="kpi-val" style="color:${roic(roi)}">${fP(roi)}</div></div>
+  `;
+
+  // breakdown по кожному обраному магазину
+  const byShop = {};
+  rows.forEach(r=>{
+    const k = r.name+"|"+r.ch;
+    if(!byShop[k]) byShop[k] = {name:r.name,ch:r.ch,budget:0,leads:0,approved:0,sales:0,margin:0,net:0,costs:0};
+    byShop[k].budget+=r.budget; byShop[k].leads+=r.leads; byShop[k].approved+=r.approved;
+    byShop[k].sales+=r.sales; byShop[k].margin+=r.margin; byShop[k].net+=r.net; byShop[k].costs+=r.costs;
+  });
+  const shopList = Object.values(byShop).map(s=>({...s,roas:s.budget?s.margin/s.budget:0,roi:s.costs?s.net/s.costs:0}))
+    .sort((a,b)=>b.net-a.net);
+
+  document.getElementById("rep-sources").innerHTML = shopList.map(s=>`
+    <div class="rep-src-card">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+        <span style="font-weight:700;font-size:15px">${s.name}</span>
+        <span class="ch-btn ch-${s.ch==='Google'?'g':'p'}">${s.ch}</span>
+        <div style="margin-left:auto;text-align:right">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:700;color:${nc(s.net)}">${fmt(s.net)} ₴</div>
+          <div style="font-size:11px;color:#999">ROAS ${fX(s.roas)} · ROI ${fP(s.roi)}</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:18px;flex-wrap:wrap;font-size:12px;color:#999">
+        <span>Бюджет: <b style="color:#111;font-family:'JetBrains Mono',monospace">${fmt(s.budget)}</b></span>
+        <span>Заявки: <b style="color:#111;font-family:'JetBrains Mono',monospace">${fmt(s.leads)}</b></span>
+        <span>Апрув: <b style="color:#111;font-family:'JetBrains Mono',monospace">${fmt(s.approved)}</b></span>
+        <span>Продажі: <b style="color:#111;font-family:'JetBrains Mono',monospace">${fmt(s.sales)}</b></span>
+        <span>Маржа: <b style="color:#111;font-family:'JetBrains Mono',monospace">${fmt(s.margin)}</b></span>
+      </div>
+    </div>
+  `).join("") || '<p class="hint">Немає даних за обраний період і джерела.</p>';
+
+  // графік по днях (сума по всіх обраних)
+  const byDay = {};
+  rows.forEach(r=>{
+    const k = r.date.toISOString().slice(0,10);
+    if(!byDay[k]) byDay[k] = {date:r.date,net:0};
+    byDay[k].net += r.net;
+  });
+  const days = Object.values(byDay).sort((a,b)=>a.date-b.date);
+  const maxAbs = Math.max(1,...days.map(d=>Math.abs(d.net)));
+  const fmtDayLbl = d => String(d.getDate()).padStart(2,"0")+"."+String(d.getMonth()+1).padStart(2,"0");
+
+  if(days.length===0){
+    document.getElementById("rep-chart").innerHTML = '<p class="hint">Немає даних для графіку.</p>';
+  } else {
+    document.getElementById("rep-chart").innerHTML = `
+      <div style="display:flex;align-items:flex-end;gap:3px;height:120px;border-bottom:2px solid #F0F0EE;overflow-x:auto">
+        ${days.map(d=>{
+          const pct = Math.max(Math.abs(d.net)/maxAbs*100,3);
+          const pos = d.net>=0;
+          return `<div style="flex:1;min-width:8px;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%">
+            <div title="${fmtDayLbl(d.date)}: ${fmt(d.net)} ₴" style="width:80%;background:${pos?'#0E7C5A':'#C2453B'};border-radius:3px 3px 0 0;height:${pct}%;min-height:3px;opacity:.85"></div>
+          </div>`;
+        }).join("")}
+      </div>
+      <div style="display:flex;gap:3px;margin-top:6px;overflow-x:auto">
+        ${days.map(d=>`<div style="flex:1;min-width:8px;text-align:center;font-size:8px;color:#BBB">${fmtDayLbl(d.date)}</div>`).join("")}
+      </div>
+    `;
+  }
+}
+
+// init конфігу одразу (без завантаження CSV, лише локально)
+repLoadSourcesConfig();
+</script>
+
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
   import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
@@ -526,6 +923,22 @@ init();
   window._fbSave = (data) => set(dbRef, data).catch(e => console.warn("FB error:", e));
   const st = document.getElementById("fb-status");
   if(st) { st.innerHTML = '<span class="fb-badge" style="background:#E6F5EE;color:#0E7C5A;border-color:#C3E8D8">🔄 Firebase</span>'; }
+
+  // ── Звіти по магазинах: окрема гілка бази для конфігу джерел ──
+  const repDbRef = ref(db, "shop-reports/sources");
+  let repFbLoaded = false;
+  onValue(repDbRef, (snap) => {
+    const val = snap.val();
+    if (val && Array.isArray(val) && val.length && !repFbLoaded) {
+      repFbLoaded = true;
+      repSources = val;
+      if(document.getElementById("app-reports") && document.getElementById("app-reports").style.display !== "none"){
+        repRenderSettingsTable();
+        repReload();
+      }
+    } else { repFbLoaded = true; }
+  });
+  window._repFbSave = (data) => set(repDbRef, data).catch(e => console.warn("Reports FB error:", e));
 </script>
 </body>
 </html>
