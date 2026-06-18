@@ -135,6 +135,28 @@ input[type=number]{-moz-appearance:textfield;}
 .sb{background:var(--surface);border:1px solid var(--border-2);border-radius:12px;overflow:hidden;margin-bottom:12px;}
 .sb-t{font-size:13px;font-weight:700;padding:13px 18px;border-bottom:1px solid var(--border-3);}
 
+/* DAYS TABLE (warm theme) */
+.days-wrap{background:linear-gradient(180deg,#FFF8EA,#FFF2D9);border:1px solid #F0CE8F;border-radius:14px;padding:6px;margin-top:12px;overflow-x:auto;}
+.days-table{width:100%;border-collapse:collapse;min-width:1100px;}
+.days-table thead th{background:#F6A93C;color:#5A3300;font-size:10px;text-transform:uppercase;letter-spacing:.03em;padding:10px 9px;text-align:right;white-space:nowrap;font-weight:700;}
+.days-table thead th:first-child{text-align:left;border-radius:9px 0 0 0;}
+.days-table thead th:last-child{border-radius:0 9px 0 0;}
+.days-table tbody tr{background:#FFFCF6;}
+.days-table tbody tr:nth-child(even){background:#FFF5E1;}
+.days-table tbody tr:hover{background:#FFEACB;}
+.days-table td{padding:7px 9px;font-size:12.5px;text-align:right;font-family:'JetBrains Mono',monospace;border-bottom:1px solid #F5E2B8;white-space:nowrap;}
+.days-table td:first-child{text-align:left;font-weight:700;color:#7C4A03;font-family:inherit;}
+.days-table tfoot td{background:#F8DA98;font-weight:800;border-top:2px solid #E8B158;padding:9px;}
+.days-table tfoot td:first-child{color:#5A3300;}
+.dc-budget{color:#3A3A3A;}
+.dc-blue{color:#1A56C4;}
+.dc-apv{color:#B45309;}
+.dc-cost{color:#8A7A60;}
+.dc-green{color:#0E7C5A;}
+.dc-teal{color:#0F766E;}
+.dc-red{color:#C2453B;}
+.dc-purple{color:#7C3AED;}
+
 /* TOOLTIP */
 .tip-label{border-bottom:1px dashed var(--text-faint);cursor:help;white-space:nowrap;}
 #gtip{display:none;position:fixed;z-index:99999;background:var(--surface);color:var(--text);font-size:12.5px;border-radius:12px;padding:13px 15px;width:240px;line-height:1.65;box-shadow:0 4px 24px rgba(0,0,0,.15),0 0 0 1px var(--border-2);pointer-events:none;font-family:'Inter',-apple-system,sans-serif;}
@@ -917,9 +939,17 @@ function repRenderDaysTable(s){
     return {date:r.date, ...m};
   });
   const fmtDate = d => String(d.getDate()).padStart(2,"0")+"."+String(d.getMonth()+1).padStart(2,"0");
+  const n = dayRows.length || 1;
+  const avg = dayRows.reduce((a,d)=>({budget:a.budget+d.budget,leads:a.leads+d.leads,approved:a.approved+d.approved,
+    approvalRate:a.approvalRate+d.approvalRate,cpl:a.cpl+d.cpl,cpa:a.cpa+d.cpa,marginPotential:a.marginPotential+d.marginPotential,
+    realMargin:a.realMargin+d.realMargin,picked:a.picked+d.picked,returns:a.returns+d.returns,returnCost:a.returnCost+d.returnCost,
+    kc:a.kc+d.kc,costs:a.costs+d.costs,net:a.net+d.net,roas:a.roas+d.roas,roi:a.roi+d.roi}),
+    {budget:0,leads:0,approved:0,approvalRate:0,cpl:0,cpa:0,marginPotential:0,realMargin:0,picked:0,returns:0,returnCost:0,kc:0,costs:0,net:0,roas:0,roi:0});
+  Object.keys(avg).forEach(k=>avg[k]=avg[k]/n);
+
   return `
-    <div class="scroll" style="margin-top:12px">
-      <table>
+    <div class="days-wrap">
+      <table class="days-table">
         <thead><tr>
           <th style="text-align:left">Дата</th>
           <th>Бюджет</th><th>Заявки</th><th>Апрув</th><th>% Апрув</th>
@@ -929,24 +959,42 @@ function repRenderDaysTable(s){
         </tr></thead>
         <tbody>
           ${dayRows.map(d=>`<tr>
-            <td style="text-align:left;font-weight:600">${fmtDate(d.date)}</td>
-            <td class="r">${fmt(d.budget)}</td>
-            <td class="r">${fmt(d.leads)}</td>
-            <td class="r">${fmt(d.approved)}</td>
-            <td class="r">${d.approvalRate.toFixed(1)}%</td>
-            <td class="r">${fmt(d.cpl)}</td>
-            <td class="r">${fmt(d.cpa)}</td>
-            <td class="r">${fmt(d.marginPotential)}</td>
-            <td class="r">${fmt(d.realMargin)}</td>
-            <td class="r">${fmt(d.picked)}</td>
-            <td class="r">${fmt(d.returns)} <span style="color:var(--text-faint)">(${fmt(d.returnCost)})</span></td>
-            <td class="r">${fmt(d.kc)}</td>
-            <td class="r">${fmt(d.costs)}</td>
-            <td class="r" style="font-weight:700;color:${nc(d.net)}">${fmt(d.net)}</td>
-            <td class="r" style="color:${rc(d.roas)}">${fX(d.roas)}</td>
-            <td class="r" style="color:${roic(d.roi)}">${fP(d.roi)}</td>
+            <td>${fmtDate(d.date)}</td>
+            <td class="dc-budget">${fmt(d.budget)}</td>
+            <td class="dc-blue">${fmt(d.leads)}</td>
+            <td class="dc-blue">${fmt(d.approved)}</td>
+            <td class="dc-apv">${d.approvalRate.toFixed(1)}%</td>
+            <td class="dc-cost">${fmt(d.cpl)}</td>
+            <td class="dc-cost">${fmt(d.cpa)}</td>
+            <td class="dc-green">${fmt(d.marginPotential)}</td>
+            <td class="dc-green">${fmt(d.realMargin)}</td>
+            <td class="dc-teal">${fmt(d.picked)}</td>
+            <td class="dc-red">${fmt(d.returns)} <span style="opacity:.6">(${fmt(d.returnCost)})</span></td>
+            <td class="dc-purple">${fmt(d.kc)}</td>
+            <td class="dc-red">${fmt(d.costs)}</td>
+            <td style="font-weight:700;color:${nc(d.net)}">${fmt(d.net)}</td>
+            <td style="color:${rc(d.roas)}">${fX(d.roas)}</td>
+            <td style="color:${roic(d.roi)}">${fP(d.roi)}</td>
           </tr>`).join("")}
         </tbody>
+        <tfoot><tr>
+          <td>Середнє</td>
+          <td class="dc-budget">${fmt(avg.budget)}</td>
+          <td class="dc-blue">${fmt(avg.leads)}</td>
+          <td class="dc-blue">${fmt(avg.approved)}</td>
+          <td class="dc-apv">${avg.approvalRate.toFixed(1)}%</td>
+          <td class="dc-cost">${fmt(avg.cpl)}</td>
+          <td class="dc-cost">${fmt(avg.cpa)}</td>
+          <td class="dc-green">${fmt(avg.marginPotential)}</td>
+          <td class="dc-green">${fmt(avg.realMargin)}</td>
+          <td class="dc-teal">${fmt(avg.picked)}</td>
+          <td class="dc-red">${fmt(avg.returns)} <span style="opacity:.6">(${fmt(avg.returnCost)})</span></td>
+          <td class="dc-purple">${fmt(avg.kc)}</td>
+          <td class="dc-red">${fmt(avg.costs)}</td>
+          <td style="color:${nc(avg.net)}">${fmt(avg.net)}</td>
+          <td style="color:${rc(avg.roas)}">${fX(avg.roas)}</td>
+          <td style="color:${roic(avg.roi)}">${fP(avg.roi)}</td>
+        </tr></tfoot>
       </table>
     </div>
   `;
