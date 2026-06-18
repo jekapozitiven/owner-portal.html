@@ -151,8 +151,8 @@ input[type=number]{-moz-appearance:textfield;}
 <body>
 
 <!-- HOME -->
-<button class="theme-toggle" id="theme-toggle-btn" onclick="toggleTheme()" title="Перемкнути тему">🌙</button>
 <div id="home">
+<button class="theme-toggle" id="theme-toggle-btn" onclick="toggleTheme()" title="Перемкнути тему">🌙</button>
   <div class="h-top">
     <div class="h-logo">BBB CLUB <em>//</em></div>
     <div class="h-role">Власник</div>
@@ -616,6 +616,11 @@ const REP_DEFAULT_SOURCES = [
 let repSources = [];
 let repRows = [];          // всі рядки з усіх джерел, з повною датою
 let repSelKeys = new Set(); // обрані "name|ch"
+let repExpandedShops = new Set(); // розгорнуті по днях картки магазинів
+function repToggleExpand(key){
+  repExpandedShops.has(key) ? repExpandedShops.delete(key) : repExpandedShops.add(key);
+  repRenderAll();
+}
 let repPeriod = "month";    // today | 7d | month | all | custom
 let repCustomStart = null, repCustomEnd = null;
 let repLoading = false;
@@ -874,13 +879,9 @@ function repFilteredRows(){
   });
 }
 
-// розрахунок повного набору метрик для масиву рядків одного магазину
-function repCalcShop(rows, buyoutPct, kcPct, returnCostUnit){
+// розрахунок метрик з вже підсумованих сирих даних (raw: budget/leads/approved/marginPotential/notCounted)
+function repCalcMetrics(raw, buyoutPct, kcPct, returnCostUnit){
   const b = buyoutPct/100;
-  const raw = rows.reduce((a,r)=>({budget:a.budget+r.budget,leads:a.leads+r.leads,
-    approved:a.approved+r.approved,marginPotential:a.marginPotential+r.marginPotential,
-    notCounted:a.notCounted+r.notCounted}),
-    {budget:0,leads:0,approved:0,marginPotential:0,notCounted:0});
   const realMargin = raw.marginPotential*b;
   const picked = raw.approved*b;
   const returns = raw.approved-picked;
@@ -898,6 +899,57 @@ function repCalcShop(rows, buyoutPct, kcPct, returnCostUnit){
     pctBudgetOfMargin: realMargin?raw.budget/realMargin*100:0,
     pctSalaryOfProfit: net?kc/net*100:0,
   };
+}
+// розрахунок повного набору метрик для масиву рядків одного магазину (сума за період)
+function repCalcShop(rows, buyoutPct, kcPct, returnCostUnit){
+  const raw = rows.reduce((a,r)=>({budget:a.budget+r.budget,leads:a.leads+r.leads,
+    approved:a.approved+r.approved,marginPotential:a.marginPotential+r.marginPotential,
+    notCounted:a.notCounted+r.notCounted}),
+    {budget:0,leads:0,approved:0,marginPotential:0,notCounted:0});
+  return repCalcMetrics(raw, buyoutPct, kcPct, returnCostUnit);
+}
+
+function repRenderDaysTable(s){
+  const sorted = [...s.days].sort((a,b)=>a.date-b.date);
+  const dayRows = sorted.map(r=>{
+    const raw = {budget:r.budget,leads:r.leads,approved:r.approved,marginPotential:r.marginPotential,notCounted:r.notCounted};
+    const m = repCalcMetrics(raw, s.buyoutPct, s.kcPct, s.returnCostUnit);
+    return {date:r.date, ...m};
+  });
+  const fmtDate = d => String(d.getDate()).padStart(2,"0")+"."+String(d.getMonth()+1).padStart(2,"0");
+  return `
+    <div class="scroll" style="margin-top:12px">
+      <table>
+        <thead><tr>
+          <th style="text-align:left">Дата</th>
+          <th>Бюджет</th><th>Заявки</th><th>Апрув</th><th>% Апрув</th>
+          <th>Ц.заявки</th><th>Ц.апрув</th><th>Маржа 100%</th><th>Маржа реал.</th>
+          <th>Забрали</th><th>Поверн.</th><th>КЦ</th><th>Витрати</th>
+          <th>Чистими</th><th>ROAS</th><th>ROI</th>
+        </tr></thead>
+        <tbody>
+          ${dayRows.map(d=>`<tr>
+            <td style="text-align:left;font-weight:600">${fmtDate(d.date)}</td>
+            <td class="r">${fmt(d.budget)}</td>
+            <td class="r">${fmt(d.leads)}</td>
+            <td class="r">${fmt(d.approved)}</td>
+            <td class="r">${d.approvalRate.toFixed(1)}%</td>
+            <td class="r">${fmt(d.cpl)}</td>
+            <td class="r">${fmt(d.cpa)}</td>
+            <td class="r">${fmt(d.marginPotential)}</td>
+            <td class="r">${fmt(d.realMargin)}</td>
+            <td class="r">${fmt(d.picked)}</td>
+            <td class="r">${fmt(d.returns)} <span style="color:var(--text-faint)">(${fmt(d.returnCost)})</span></td>
+            <td class="r">${fmt(d.kc)}</td>
+            <td class="r">${fmt(d.costs)}</td>
+            <td class="r" style="font-weight:700;color:${nc(d.net)}">${fmt(d.net)}</td>
+            <td class="r" style="color:${rc(d.roas)}">${fX(d.roas)}</td>
+            <td class="r" style="color:${roic(d.roi)}">${fP(d.roi)}</td>
+          </tr>`).join("")}
+        </tbody>
+      </table>
+    </div>
+  `;
 }
 
 function repRenderAll(){
@@ -917,7 +969,7 @@ function repRenderAll(){
     const kcPct = repGetKc(key);
     const returnCostUnit = repGetReturnCost(key);
     const m = repCalcShop(shopRows, buyoutPct, kcPct, returnCostUnit);
-    return {key, name:shopRows[0].name, ch:shopRows[0].ch, ...m};
+    return {key, name:shopRows[0].name, ch:shopRows[0].ch, days:shopRows, ...m};
   }).sort((a,b)=>b.net-a.net);
 
   // тотал = сума вже розрахованих по-магазинних метрик
@@ -976,6 +1028,8 @@ function repRenderAll(){
         <span>Витрати: <b style="color:var(--text);font-family:'JetBrains Mono',monospace">${fmt(s.costs)}</b></span>
         <span>Не враховуємо: <b style="color:var(--text);font-family:'JetBrains Mono',monospace">${fmt(s.notCounted)}</b></span>
       </div>
+      <button class="btn" style="margin-top:12px" onclick="repToggleExpand('${s.key}')">${repExpandedShops.has(s.key)?'▴ Згорнути':'📅 Деталі по днях'}</button>
+      ${repExpandedShops.has(s.key)?repRenderDaysTable(s):''}
     </div>
   `).join("") || '<p class="hint">Немає даних за обраний період і джерела.</p>';
 
