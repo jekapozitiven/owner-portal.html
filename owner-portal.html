@@ -939,8 +939,9 @@ function repRenderDaysTable(s){
     return {date:r.date, ...m};
   });
   const fmtDate = d => String(d.getDate()).padStart(2,"0")+"."+String(d.getMonth()+1).padStart(2,"0");
-  const n = dayRows.length || 1;
-  const avg = dayRows.reduce((a,d)=>({budget:a.budget+d.budget,leads:a.leads+d.leads,approved:a.approved+d.approved,
+  const filledRows = dayRows.filter(d=>d.budget>0||d.leads>0||d.approved>0);
+  const n = filledRows.length || 1;
+  const avg = filledRows.reduce((a,d)=>({budget:a.budget+d.budget,leads:a.leads+d.leads,approved:a.approved+d.approved,
     approvalRate:a.approvalRate+d.approvalRate,cpl:a.cpl+d.cpl,cpa:a.cpa+d.cpa,marginPotential:a.marginPotential+d.marginPotential,
     realMargin:a.realMargin+d.realMargin,picked:a.picked+d.picked,returns:a.returns+d.returns,returnCost:a.returnCost+d.returnCost,
     kc:a.kc+d.kc,costs:a.costs+d.costs,net:a.net+d.net,roas:a.roas+d.roas,roi:a.roi+d.roi}),
@@ -978,7 +979,7 @@ function repRenderDaysTable(s){
           </tr>`).join("")}
         </tbody>
         <tfoot><tr>
-          <td>Середнє</td>
+          <td>Середнє (${n} дн.)</td>
           <td class="dc-budget">${fmt(avg.budget)}</td>
           <td class="dc-blue">${fmt(avg.leads)}</td>
           <td class="dc-blue">${fmt(avg.approved)}</td>
