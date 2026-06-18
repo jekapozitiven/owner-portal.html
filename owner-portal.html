@@ -346,6 +346,8 @@ input[type=number]{-moz-appearance:textfield;}
     </div>
 
     <div class="kpis" id="rep-kpis"></div>
+    <button class="btn" id="rep-total-toggle-btn" style="margin-bottom:14px" onclick="repToggleTotalExpand()"></button>
+    <div id="rep-total-days"></div>
 
     <div id="rep-sources"></div>
 
@@ -367,6 +369,7 @@ input[type=number]{-moz-appearance:textfield;}
     <div class="bar-right">
       <span id="fin-status" style="font-size:11px;color:var(--text-muted)"></span>
       <button class="btn" onclick="finReload()">🔄 Оновити дані</button>
+      <button class="btn" onclick="finSyncFromSheet()">↻ Синхронізувати з таблицею</button>
       <button class="btn" onclick="finToggleSettings()">⚙ Джерело витрат</button>
     </div>
   </div>
@@ -724,6 +727,7 @@ let repSources = [];
 let repRows = [];          // всі рядки з усіх джерел, з повною датою
 let repSelKeys = new Set(); // обрані "name|ch"
 let repExpandedShops = new Set(); // розгорнуті по днях картки магазинів
+let repTotalExpanded = false; // розгорнута загальна таблиця по днях (усі джерела разом)
 function repToggleExpand(key){
   repExpandedShops.has(key) ? repExpandedShops.delete(key) : repExpandedShops.add(key);
   repRenderAll();
@@ -1042,13 +1046,7 @@ function repCalcShop(rows, buyoutPct, kcPct, returnCostUnit){
   return repCalcMetrics(raw, buyoutPct, kcPct, returnCostUnit);
 }
 
-function repRenderDaysTable(s){
-  const sorted = [...s.days].sort((a,b)=>a.date-b.date);
-  const dayRows = sorted.map(r=>{
-    const raw = {budget:r.budget,leads:r.leads,approved:r.approved,marginPotential:r.marginPotential,notCounted:r.notCounted};
-    const m = repCalcMetrics(raw, s.buyoutPct, s.kcPct, s.returnCostUnit);
-    return {date:r.date, ...m};
-  });
+function repRenderDaysTableHtml(dayRows){
   const fmtDate = d => String(d.getDate()).padStart(2,"0")+"."+String(d.getMonth()+1).padStart(2,"0");
   const filledRows = dayRows.filter(d=>d.budget>0||d.leads>0||d.approved>0);
   const n = filledRows.length || 1;
@@ -1112,6 +1110,52 @@ function repRenderDaysTable(s){
   `;
 }
 
+function repRenderDaysTable(s){
+  const sorted = [...s.days].sort((a,b)=>a.date-b.date);
+  const dayRows = sorted.map(r=>{
+    const raw = {budget:r.budget,leads:r.leads,approved:r.approved,marginPotential:r.marginPotential,notCounted:r.notCounted};
+    const m = repCalcMetrics(raw, s.buyoutPct, s.kcPct, s.returnCostUnit);
+    return {date:r.date, ...m};
+  });
+  return repRenderDaysTableHtml(dayRows);
+}
+
+// агрегований по днях розрахунок по ВСІХ обраних джерелах разом (кожне зі своїм викуп%/КЦ%/повернення)
+function repCalcAllSourcesDayRows(rows){
+  const byDate = {};
+  rows.forEach(r=>{
+    const dk = r.date.toISOString().slice(0,10);
+    if(!byDate[dk]) byDate[dk] = {date:r.date, rowsByShop:{}};
+    const key = r.name+"|"+r.ch;
+    if(!byDate[dk].rowsByShop[key]) byDate[dk].rowsByShop[key] = [];
+    byDate[dk].rowsByShop[key].push(r);
+  });
+  return Object.values(byDate).map(day=>{
+    let sum = {budget:0,leads:0,approved:0,marginPotential:0,notCounted:0,realMargin:0,picked:0,returns:0,returnCost:0,kc:0,costs:0,net:0};
+    Object.entries(day.rowsByShop).forEach(([key,shopRows])=>{
+      const raw = shopRows.reduce((a,r)=>({budget:a.budget+r.budget,leads:a.leads+r.leads,approved:a.approved+r.approved,
+        marginPotential:a.marginPotential+r.marginPotential,notCounted:a.notCounted+r.notCounted}),
+        {budget:0,leads:0,approved:0,marginPotential:0,notCounted:0});
+      const m = repCalcMetrics(raw, repGetBuyout(key), repGetKc(key), repGetReturnCost(key));
+      Object.keys(sum).forEach(k=>sum[k]+=m[k]||0);
+    });
+    return {date:day.date, ...sum,
+      approvalRate: sum.leads?sum.approved/sum.leads*100:0,
+      cpl: sum.leads?sum.budget/sum.leads:0,
+      cpa: sum.approved?sum.budget/sum.approved:0,
+      roas: sum.budget?sum.realMargin/sum.budget:0,
+      roi: sum.costs?sum.net/sum.costs:0,
+    };
+  }).sort((a,b)=>a.date-b.date);
+}
+function repRenderTotalDaysTable(rows){
+  return repRenderDaysTableHtml(repCalcAllSourcesDayRows(rows));
+}
+function repToggleTotalExpand(){
+  repTotalExpanded = !repTotalExpanded;
+  repRenderAll();
+}
+
 function repRenderAll(){
   repRenderGroupPills();
   repRenderSrcPills();
@@ -1152,6 +1196,8 @@ function repRenderAll(){
     <div class="kpi"><div class="kpi-lbl">% бюджету від маржі</div><div class="kpi-val">${fP(pctBudgetOfMargin/100)}</div></div>
     <div class="kpi"><div class="kpi-lbl">% ЗП від прибутку</div><div class="kpi-val">${fP(pctSalaryOfProfit/100)}</div></div>
   `;
+  document.getElementById("rep-total-toggle-btn").textContent = repTotalExpanded ? "▴ Згорнути" : "📅 Деталі по днях (усі джерела)";
+  document.getElementById("rep-total-days").innerHTML = repTotalExpanded ? repRenderTotalDaysTable(rows) : "";
 
   document.getElementById("rep-sources").innerHTML = shopList.map(s=>`
     <div class="rep-src-card">
@@ -1257,26 +1303,57 @@ const FIN_DEFAULT_SOURCES = [
   {id:1, year:2026, month:6, sheetId:"1PPQ2xC3eBeoDaVTeY1--5pVl_nN2hLACxn2moukz3GM", gid:"1836768932"},
 ];
 let finSources = [];
-let finDataByMonth = {}; // "2026-6" -> {items:[{name,note,amount}], total}
+let finDataByMonth = {}; // "2026-6" -> {items:[{name,note,amount,cat}]}
 let finCurYear = null, finCurMonth = null;
 let finLoading = false;
 let finOpenCats = new Set();
+let finCustomCats = [];
+const FIN_CAT_PALETTE = ["#1F6FEB","#C2453B","#7C3AED","#CA8A04","#0E7C5A","#DB2777","#0EA5E9","#F97316"];
 
 const FIN_CATS = [
   {key:"salary", label:"Зарплати команди", icon:"👥", color:"#1F6FEB",
-    match:n=>/бухгалтер|менеджер|тім ?л[іи]д|тим ?лид/i.test(n)},
+    match:n=>{const s=n.toLowerCase(); return s.includes("бухгалтер")||s.includes("менеджер")||s.includes("тім ліd")||s.includes("тім лід")||s.includes("тим лид");}},
   {key:"logistics", label:"Логістика та повернення", icon:"📦", color:"#C2453B",
-    match:n=>/доставк|повернен|возврат|компенсац/i.test(n)},
+    match:n=>{const s=n.toLowerCase(); return s.includes("доставк")||s.includes("повернен")||s.includes("возврат")||s.includes("компенсац");}},
   {key:"ads", label:"Реклама та податки", icon:"📢", color:"#7C3AED",
-    match:n=>/налог|податок|комі[сс]ію|комиссию реклам/i.test(n)},
+    match:n=>{const s=n.toLowerCase(); return s.includes("налог")||s.includes("податок")||s.includes("комис")||s.includes("коміс");}},
   {key:"services", label:"Сервіси та підписки", icon:"🛠", color:"#CA8A04",
-    match:n=>/срм|crm|вайбер|чекбокс|sendpuls|claude|сайт|блинк|blink|пром|телефон|смс|sms/i.test(n)},
-  {key:"office", label:"Офіс та інше", icon:"🏢", color:"#0E7C5A",
-    match:n=>/офис|офіс|комуналк|товар|додатков|дополнительн|вор|работа юа/i.test(n)},
+    match:n=>{const s=n.toLowerCase(); return s.includes("срм")||s.includes("crm")||s.includes("вайбер")||s.includes("чекбокс")||s.includes("sendpuls")||s.includes("claude")||s.includes("сайт")||s.includes("блинк")||s.includes("blink")||s.includes("пром")||s.includes("телефон")||s.includes("смс")||s.includes("sms");}},
+  {key:"office", label:"Інше", icon:"📋", color:"#999",
+    match:n=>true}, // універсальний фолбек, завжди останній — ловить усе, що не підійшло вище
 ];
 function finCategorize(name){
   for(const c of FIN_CATS){ if(c.match(name)) return c; }
-  return {key:"other", label:"Інше", icon:"📋", color:"#999"};
+}
+function finAllCats(){ return FIN_CATS.concat(finCustomCats); }
+
+function finLoadCustomCats(){
+  const saved = LS.get("bsfin:customcats");
+  finCustomCats = saved || [];
+}
+function finSaveCustomCats(){
+  LS.set("bsfin:customcats", finCustomCats);
+  if(window._finFbSaveCats) window._finFbSaveCats(finCustomCats);
+}
+function finAddCategory(){
+  const name = prompt("Назва нової категорії витрат:");
+  if(!name || !name.trim()) return;
+  const key = "custom_"+Date.now();
+  const color = FIN_CAT_PALETTE[finCustomCats.length % FIN_CAT_PALETTE.length];
+  finCustomCats.push({key, label:name.trim(), icon:"📁", color});
+  finSaveCustomCats();
+  finRenderAll();
+}
+function finDelCategory(key){
+  const hasItems = Object.values(finDataByMonth).some(d=>d.items && d.items.some(it=>it.cat===key));
+  if(hasItems && !confirm("У цій категорії є статті — вони переїдуть в «Інше». Видалити категорію?")) return;
+  Object.values(finDataByMonth).forEach(d=>{
+    if(d.items) d.items.forEach(it=>{ if(it.cat===key) it.cat="office"; });
+  });
+  finCustomCats = finCustomCats.filter(c=>c.key!==key);
+  finSaveCustomCats();
+  finPersistCurrentMonth();
+  finRenderAll();
 }
 
 function finLoadSourcesConfig(){
@@ -1293,6 +1370,7 @@ function openFinance(){
   document.getElementById("app-finance").style.display="block";
   LS.set("bsown:lastScreen","finance");
   if(!finSources.length) finLoadSourcesConfig();
+  finLoadCustomCats();
   if(finCurYear===null){
     const today = new Date();
     const sorted = [...finSources].sort((a,b)=>(a.year*12+a.month)-(b.year*12+b.month));
@@ -1351,6 +1429,7 @@ function finParseCsv(csvText){
   }
   if(startIdx===-1) startIdx = 2; // запасний варіант
   const items = [];
+  let nid = 1;
   for(let i=startIdx;i<rows.length;i++){
     const r = rows[i];
     if(!r) continue;
@@ -1359,31 +1438,30 @@ function finParseCsv(csvText){
     if(!name) continue;
     const note = String(r[1]||"").trim();
     const amount = repParseNum(r[2]);
-    items.push({name, note, amount});
+    items.push({id:nid++, name, note, amount, cat:finCategorize(name).key});
   }
-  const total = items.reduce((a,it)=>a+it.amount,0);
-  return {items, total};
+  return {items};
 }
 
 function finRowsToArchive(data){ return data; } // вже плейн-об'єкт, серіалізується напряму
 function finRowsFromArchive(data){ return data; }
+function finTotal(data){ return (data && data.items) ? data.items.reduce((a,it)=>a+(parseFloat(it.amount)||0),0) : 0; }
+
 
 async function finReload(){
   if(finLoading) return;
   finLoading = true;
   const st = document.getElementById("fin-status");
   if(st) st.textContent = "Завантаження...";
-  const today = new Date();
-  const curYear = today.getFullYear(), curMonth = today.getMonth()+1;
   let errors = [];
   for(const cfg of finSources){
     if(!cfg.sheetId || !cfg.gid) continue;
     const mk = cfg.year+"-"+cfg.month;
-    const isCurrentMonth = (cfg.year===curYear && cfg.month===curMonth);
 
-    if(!isCurrentMonth && window._finArchiveGet){
+    // архів (включно з ручними правками) має пріоритет завжди — щоб "Оновити дані" не затирало твої правки
+    if(window._finArchiveGet){
       const archived = await window._finArchiveGet(cfg.id);
-      if(archived && archived.total!==undefined){
+      if(archived && archived.items && archived.items.length){
         finDataByMonth[mk] = finRowsFromArchive(archived);
         continue;
       }
@@ -1396,7 +1474,7 @@ async function finReload(){
       const text = await res.text();
       const data = finParseCsv(text);
       finDataByMonth[mk] = data;
-      if(!isCurrentMonth && window._finArchiveSave){
+      if(window._finArchiveSave){
         window._finArchiveSave(cfg.id, finRowsToArchive(data));
       }
     }catch(e){
@@ -1407,6 +1485,63 @@ async function finReload(){
   finLoading = false;
   if(st) st.textContent = errors.length ? ("⚠ Не вдалось: "+errors.join(", ")) : ("Оновлено "+new Date().toLocaleTimeString("uk-UA"));
   finRenderAll();
+}
+
+function finCurMk(){ return finCurYear+"-"+finCurMonth; }
+function finPersistCurrentMonth(){
+  const mk = finCurMk();
+  const cfg = finSources.find(s=>s.year===finCurYear && s.month===finCurMonth);
+  if(cfg && window._finArchiveSave){
+    window._finArchiveSave(cfg.id, finRowsToArchive(finDataByMonth[mk]));
+  }
+}
+function finEditItem(id, field, val){
+  const mk = finCurMk();
+  const data = finDataByMonth[mk];
+  if(!data) return;
+  const it = data.items.find(x=>x.id===id);
+  if(!it) return;
+  it[field] = (field==="amount") ? (parseFloat(val.replace(",","."))||0) : val;
+  finPersistCurrentMonth();
+  finRenderAll();
+}
+function finAddItem(catKey){
+  const mk = finCurMk();
+  if(!finDataByMonth[mk]) finDataByMonth[mk] = {items:[]};
+  const data = finDataByMonth[mk];
+  const nid = Math.max(0,...data.items.map(x=>x.id||0))+1;
+  data.items.push({id:nid, name:"Нова стаття", note:"", amount:0, cat:catKey});
+  finPersistCurrentMonth();
+  finRenderAll();
+}
+function finDelItem(id){
+  const mk = finCurMk();
+  const data = finDataByMonth[mk];
+  if(!data) return;
+  data.items = data.items.filter(x=>x.id!==id);
+  finPersistCurrentMonth();
+  finRenderAll();
+}
+async function finSyncFromSheet(){
+  const cfg = finSources.find(s=>s.year===finCurYear && s.month===finCurMonth);
+  if(!cfg || !cfg.sheetId || !cfg.gid){ alert("Спочатку додай Sheet ID і GID для цього місяця в ⚙ Джерело витрат."); return; }
+  if(!confirm("Це перетягне дані з Google Таблиці і замінить усі ручні правки за "+(FIN_MONTHS_UA[finCurMonth-1]||"")+" "+finCurYear+". Продовжити?")) return;
+  const st = document.getElementById("fin-status");
+  if(st) st.textContent = "Синхронізація...";
+  const url = "https://docs.google.com/spreadsheets/d/"+cfg.sheetId+"/export?format=csv&gid="+cfg.gid;
+  try{
+    const res = await fetch(url);
+    if(!res.ok) throw new Error("HTTP "+res.status);
+    const text = await res.text();
+    const data = finParseCsv(text);
+    finDataByMonth[finCurMk()] = data;
+    finPersistCurrentMonth();
+    if(st) st.textContent = "Синхронізовано "+new Date().toLocaleTimeString("uk-UA");
+    finRenderAll();
+  }catch(e){
+    console.warn("Finance sync error:", e);
+    if(st) st.textContent = "⚠ Помилка синхронізації";
+  }
 }
 
 function finShiftMonth(delta){
@@ -1456,15 +1591,16 @@ function finRenderAll(){
   document.querySelectorAll(".fin-month-arrow")[0].disabled = idx<=0;
   document.querySelectorAll(".fin-month-arrow")[1].disabled = idx>=sorted.length-1 || idx===-1;
 
-  const expData = finDataByMonth[mk] || {items:[], total:0};
+  const expData = finDataByMonth[mk] || {items:[]};
+  const expTotal = finTotal(expData);
   const ad = finGetMonthlyAdProfit(finCurYear, finCurMonth);
-  const finalNet = ad.adProfit - expData.total;
+  const finalNet = ad.adProfit - expTotal;
   const rentability = ad.realMargin ? finalNet/ad.realMargin : 0;
 
   document.getElementById("fin-summary").innerHTML = `
     <div class="fin-sum-card"><div class="fin-sum-lbl">Маржа (реальна)</div><div class="fin-sum-val">${fmt(ad.realMargin)} ₴</div><div class="fin-sum-sub">з урах. викупу, зі "Звітів"</div></div>
     <div class="fin-sum-card"><div class="fin-sum-lbl">Прибуток від реклами</div><div class="fin-sum-val" style="color:${nc(ad.adProfit)}">${fmt(ad.adProfit)} ₴</div><div class="fin-sum-sub">маржа − бюджет − КЦ − повернення</div></div>
-    <div class="fin-sum-card"><div class="fin-sum-lbl">Операційні витрати</div><div class="fin-sum-val" style="color:#C2453B">− ${fmt(expData.total)} ₴</div><div class="fin-sum-sub">${expData.items.length} категорій</div></div>
+    <div class="fin-sum-card"><div class="fin-sum-lbl">Операційні витрати</div><div class="fin-sum-val" style="color:#C2453B">− ${fmt(expTotal)} ₴</div><div class="fin-sum-sub">${expData.items.length} статей</div></div>
     <div class="fin-sum-card accent"><div class="fin-sum-lbl">Чистий прибуток компанії</div><div class="fin-sum-val">${fmt(finalNet)} ₴</div><div class="fin-sum-sub">рентабельність ${fP(rentability)}</div></div>
   `;
 
@@ -1475,35 +1611,61 @@ function finRenderAll(){
     <div class="fin-flow-op">=</div>
     <div class="fin-flow-step"><span>Прибуток від реклами</span><span style="color:${nc(ad.adProfit)}">${fmt(ad.adProfit)} ₴</span></div>
     <div class="fin-flow-op">−</div>
-    <div class="fin-flow-step"><span>Операційні витрати</span><span style="color:#C2453B">${fmt(expData.total)} ₴</span></div>
+    <div class="fin-flow-step"><span>Операційні витрати</span><span style="color:#C2453B">${fmt(expTotal)} ₴</span></div>
     <div class="fin-flow-op">=</div>
     <div class="fin-flow-step"><span>Чистий прибуток</span><span style="color:${nc(finalNet)};font-size:19px">${fmt(finalNet)} ₴</span></div>
   `;
 
-  const byCat = {};
+  // автоправка: статті, що лежать у фолбеку "Інше", але тепер підходять під конкретнішу категорію
+  let healed = false;
   expData.items.forEach(it=>{
-    const c = finCategorize(it.name);
-    if(!byCat[c.key]) byCat[c.key] = {...c, items:[], total:0};
-    byCat[c.key].items.push(it);
-    byCat[c.key].total += it.amount;
+    if(!it.cat || it.cat==="office"){
+      const auto = FIN_CATS.find(c=>c.key!=="office" && c.match(it.name));
+      if(auto){ it.cat = auto.key; healed = true; }
+    }
   });
-  const catList = Object.values(byCat).sort((a,b)=>b.total-a.total);
-  const maxCat = Math.max(1,...catList.map(c=>c.total));
+  if(healed) finPersistCurrentMonth();
 
-  document.getElementById("fin-categories").innerHTML = catList.length ? catList.map(c=>`
+  const allCats = finAllCats();
+  const byCat = {};
+  allCats.forEach(c=>{ byCat[c.key] = {...c, items:[], total:0}; });
+  expData.items.forEach(it=>{
+    const key = byCat[it.cat] ? it.cat : "office";
+    byCat[key].items.push(it);
+    byCat[key].total += (parseFloat(it.amount)||0);
+  });
+  const catList = Object.values(byCat).filter(c=>c.items.length>0).sort((a,b)=>b.total-a.total);
+  const maxCat = Math.max(1,...catList.map(c=>c.total));
+  const catOptions = c => allCats.map(o=>`<option value="${o.key}" ${o.key===c?'selected':''}>${o.icon} ${o.label}</option>`).join("");
+
+  document.getElementById("fin-categories").innerHTML = (catList.length ? catList.map(c=>`
     <div class="fin-cat-card">
       <div class="fin-cat-head" onclick="finToggleCat('${c.key}')">
         <span class="fin-cat-icon">${c.icon}</span>
         <span class="fin-cat-name">${c.label}</span>
-        <span class="fin-cat-pct">${expData.total?Math.round(c.total/expData.total*100):0}%</span>
+        <span class="fin-cat-pct">${expTotal?Math.round(c.total/expTotal*100):0}%</span>
         <span class="fin-cat-total">${fmt(c.total)} ₴</span>
+        ${c.key.startsWith("custom_")?`<button onclick="event.stopPropagation();finDelCategory('${c.key}')" style="background:0;border:0;color:#C2453B;cursor:pointer;font-size:13px;opacity:.4;padding:2px 4px">✕</button>`:''}
       </div>
       <div class="fin-cat-bar"><div class="fin-cat-bar-fill" style="width:${c.total/maxCat*100}%;background:${c.color}"></div></div>
       <div class="fin-cat-items${finOpenCats.has(c.key)?' open':''}">
-        ${c.items.map(it=>`<div class="fin-cat-item"><span>${it.name}${it.note?' <span style="opacity:.6">('+it.note+')</span>':''}</span><b>${fmt(it.amount)} ₴</b></div>`).join("")}
+        ${c.items.map(it=>`<div class="fin-cat-item" style="align-items:center">
+          <input value="${(it.name||'').replace(/"/g,'&quot;')}" onchange="finEditItem(${it.id},'name',this.value)"
+            style="flex:1;background:0;border:1px solid transparent;border-radius:6px;padding:4px 6px;font-family:inherit;font-size:12.5px;color:var(--text-muted)" onfocus="this.style.borderColor='var(--border-2)'" onblur="this.style.borderColor='transparent'">
+          <select onchange="finEditItem(${it.id},'cat',this.value)"
+            style="background:var(--bg);border:1px solid var(--border-2);border-radius:6px;padding:3px 4px;font-family:inherit;font-size:11px;color:var(--text-muted);max-width:120px">${catOptions(it.cat)}</select>
+          <input type="number" value="${it.amount}" onchange="finEditItem(${it.id},'amount',this.value)"
+            style="width:90px;background:0;border:1px solid var(--border-2);border-radius:6px;padding:4px 6px;text-align:right;font-family:'JetBrains Mono',monospace;font-size:12.5px;color:var(--text)">
+          <button onclick="finDelItem(${it.id})" style="background:0;border:0;color:#C2453B;cursor:pointer;font-size:13px;opacity:.5;padding:2px 4px" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.5">✕</button>
+        </div>`).join("")}
+        <button class="btn" style="margin-top:8px;font-size:11px;padding:5px 10px" onclick="finAddItem('${c.key}')">+ Додати статтю</button>
       </div>
     </div>
-  `).join("") : '<p class="hint">Немає даних по витратах за цей місяць. Перевір налаштування джерела.</p>';
+  `).join("") : '<p class="hint">Немає даних по витратах за цей місяць. Перевір налаштування джерела.</p>')
+  + `<div class="fin-cat-card" style="display:flex;align-items:center;justify-content:center;border:1px dashed var(--border-4);background:0;cursor:pointer;min-height:70px" onclick="finAddCategory()">
+      <span style="color:var(--text-muted);font-size:13px;font-weight:600">+ Нова категорія</span>
+    </div>`;
+
 
   // тренд по місяцях (якщо є дані по кількох місяцях)
   const trendCard = document.getElementById("fin-trend-card");
@@ -1512,8 +1674,8 @@ function finRenderAll(){
     trendCard.style.display = "";
     const trend = monthsWithData.map(s=>{
       const a = finGetMonthlyAdProfit(s.year, s.month);
-      const e = finDataByMonth[s.year+"-"+s.month] || {total:0};
-      return {label:(FIN_MONTHS_UA[s.month-1]||"?").slice(0,3)+" "+String(s.year).slice(2), net:a.adProfit-e.total};
+      const e = finDataByMonth[s.year+"-"+s.month] || {items:[]};
+      return {label:(FIN_MONTHS_UA[s.month-1]||"?").slice(0,3)+" "+String(s.year).slice(2), net:a.adProfit-finTotal(e)};
     });
     const maxAbs = Math.max(1,...trend.map(t=>Math.abs(t.net)));
     document.getElementById("fin-trend").innerHTML = `
@@ -1623,6 +1785,21 @@ finLoadSourcesConfig();
     } else { finFbLoaded = true; }
   });
   window._finFbSave = (data) => set(finDbRef, data).catch(e => console.warn("Finance FB error:", e));
+
+  // ── Фінанси: кастомні категорії витрат ──
+  const finCatsDbRef = ref(db, "finance/categories");
+  let finCatsFbLoaded = false;
+  onValue(finCatsDbRef, (snap) => {
+    const val = snap.val();
+    if (val && Array.isArray(val) && !finCatsFbLoaded) {
+      finCatsFbLoaded = true;
+      finCustomCats = val;
+      if(document.getElementById("app-finance") && document.getElementById("app-finance").style.display !== "none"){
+        finRenderAll();
+      }
+    } else { finCatsFbLoaded = true; }
+  });
+  window._finFbSaveCats = (data) => set(finCatsDbRef, data).catch(e => console.warn("Finance cats FB error:", e));
 
   // ── Фінанси: архів закритих місяців витрат ──
   window._finArchiveGet = async (id) => {
