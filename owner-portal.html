@@ -372,8 +372,8 @@ function init(){
   cur=weeks[weeks.length-1].id;
 }
 
-function openApp(){document.getElementById("home").style.display="none";document.getElementById("app").style.display="block";render();}
-function goHome(){document.getElementById("app").style.display="none";document.getElementById("home").style.display="block";}
+function openApp(){document.getElementById("home").style.display="none";document.getElementById("app").style.display="block";LS.set("bsown:lastScreen","app");render();}
+function goHome(){document.getElementById("app").style.display="none";document.getElementById("home").style.display="block";LS.set("bsown:lastScreen","home");}
 function switchTab(t){["week","stats"].forEach(x=>{document.getElementById("pane-"+x).style.display=x===t?"":"none";document.getElementById("tb-"+x).classList.toggle("on",x===t);});if(t==="stats")renderStats();}
 
 function addWeek(){const l=weeks[weeks.length-1];const st=addD(l.end||l.start,1);const en=addD(st,6);const nw={...JSON.parse(JSON.stringify(l)),id:nid(),start:st,end:en,sources:l.sources.map(s=>{return{...s,id:nid(),camps:s.camps.map(c=>{return{...c,id:nid(),leads:0,orders:0,budget:0,margin:0};})};})};weeks.push(nw);cur=nw.id;save();render();}
@@ -607,6 +607,7 @@ function repSaveSourcesConfig(){
 function openReports(){
   document.getElementById("home").style.display="none";
   document.getElementById("app-reports").style.display="block";
+  LS.set("bsown:lastScreen","reports");
   if(!repSources.length) repLoadSourcesConfig();
   repRenderPeriodPills();
   repRenderSettingsTable();
@@ -998,6 +999,13 @@ function repRenderAll(){
 }
 
 repLoadParams();
+
+// відновлюємо останній відкритий екран після перезавантаження сторінки
+(function(){
+  const last = LS.get("bsown:lastScreen");
+  if(last==="app") openApp();
+  else if(last==="reports") openReports();
+})();
 
 repLoadSourcesConfig();
 </script>
