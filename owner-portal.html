@@ -137,17 +137,20 @@ input[type=number]{-moz-appearance:textfield;}
 
 /* DAYS TABLE (warm theme) */
 .days-wrap{background:linear-gradient(180deg,#FFF8EA,#FFF2D9);border:1px solid #F0CE8F;border-radius:14px;padding:6px;margin-top:12px;overflow-x:auto;}
-.days-table{width:100%;border-collapse:collapse;min-width:1100px;}
-.days-table thead th{background:#F6A93C;color:#5A3300;font-size:10px;text-transform:uppercase;letter-spacing:.03em;padding:10px 9px;text-align:right;white-space:nowrap;font-weight:700;}
-.days-table thead th:first-child{text-align:left;border-radius:9px 0 0 0;}
-.days-table thead th:last-child{border-radius:0 9px 0 0;}
+.days-wrap::-webkit-scrollbar{height:10px;}
+.days-wrap::-webkit-scrollbar-track{background:#FBE7BD;border-radius:6px;}
+.days-wrap::-webkit-scrollbar-thumb{background:#E2A53F;border-radius:6px;}
+.days-table{width:100%;border-collapse:collapse;min-width:980px;}
+.days-table thead th{background:#F6A93C;color:#5A3300;font-size:9px;text-transform:uppercase;letter-spacing:.02em;padding:8px 6px;text-align:right;white-space:nowrap;font-weight:700;}
+.days-table thead th:first-child{text-align:left;}
 .days-table tbody tr{background:#FFFCF6;}
 .days-table tbody tr:nth-child(even){background:#FFF5E1;}
 .days-table tbody tr:hover{background:#FFEACB;}
-.days-table td{padding:7px 9px;font-size:12.5px;text-align:right;font-family:'JetBrains Mono',monospace;border-bottom:1px solid #F5E2B8;white-space:nowrap;}
-.days-table td:first-child{text-align:left;font-weight:700;color:#7C4A03;font-family:inherit;}
-.days-table tfoot td{background:#F8DA98;font-weight:800;border-top:2px solid #E8B158;padding:9px;}
-.days-table tfoot td:first-child{color:#5A3300;}
+.days-table td{padding:6px 6px;font-size:11.5px;text-align:right;font-family:'JetBrains Mono',monospace;border-bottom:1px solid #F5E2B8;white-space:nowrap;}
+.days-table td:first-child{text-align:left;font-weight:700;color:#7C4A03;font-family:inherit;padding-left:9px;}
+.days-table td:last-child,.days-table th:last-child{padding-right:14px;}
+.days-table tfoot td{background:#F8DA98;font-weight:800;border-top:2px solid #E8B158;padding:8px 6px;}
+.days-table tfoot td:first-child{color:#5A3300;padding-left:9px;}
 .dc-budget{color:#3A3A3A;}
 .dc-blue{color:#1A56C4;}
 .dc-apv{color:#B45309;}
