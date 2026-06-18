@@ -798,6 +798,13 @@ function repParseCsv(csvText, cfg){
   return out;
 }
 
+function repRowsToArchive(rows){
+  return rows.map(r=>({...r, date: r.date.toISOString()}));
+}
+function repRowsFromArchive(rows){
+  return rows.map(r=>({...r, date: new Date(r.date)}));
+}
+
 async function repReload(){
   if(repLoading) return;
   repLoading = true;
@@ -805,8 +812,22 @@ async function repReload(){
   if(st) st.textContent = "Завантаження...";
   let allRows = [];
   let errors = [];
+  const today = new Date();
+  const curYear = today.getFullYear(), curMonth = today.getMonth()+1;
   for(const cfg of repSources){
     if(!cfg.sheetId || !cfg.gid) continue;
+    const isCurrentMonth = (cfg.year===curYear && cfg.month===curMonth);
+
+    // минулі місяці спершу шукаємо в архіві Firebase — швидко і не залежить від Google Таблиці
+    if(!isCurrentMonth && window._repArchiveGet){
+      const archived = await window._repArchiveGet(cfg.id);
+      if(archived && archived.length){
+        allRows = allRows.concat(repRowsFromArchive(archived));
+        continue;
+      }
+    }
+
+    // поточний місяць — завжди наживо; минулий без архіву — тягнемо і одразу архівуємо
     const url = "https://docs.google.com/spreadsheets/d/"+cfg.sheetId+"/export?format=csv&gid="+cfg.gid;
     try{
       const res = await fetch(url);
@@ -814,6 +835,9 @@ async function repReload(){
       const text = await res.text();
       const rows = repParseCsv(text, cfg);
       allRows = allRows.concat(rows);
+      if(!isCurrentMonth && rows.length && window._repArchiveSave){
+        window._repArchiveSave(cfg.id, repRowsToArchive(rows));
+      }
     }catch(e){
       console.warn("Reports load error for", cfg.name, e);
       errors.push(cfg.name);
@@ -1140,7 +1164,7 @@ repLoadSourcesConfig();
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+  import { getDatabase, ref, set, get, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
   const firebaseConfig = {
     apiKey: "AIzaSyAKBZifq8tmsJ75DL1Y6QiAY942TFcZuKk",
     authDomain: "owner-portal-1649e.firebaseapp.com",
@@ -1197,6 +1221,15 @@ repLoadSourcesConfig();
     } else { repParamsFbLoaded = true; }
   });
   window._repFbSaveParams = (data) => set(repParamsDbRef, data).catch(e => console.warn("Reports params FB error:", e));
+
+  // ── архів закритих місяців: зберігаємо назавжди, щоб не залежати від Google Таблиці ──
+  window._repArchiveGet = async (id) => {
+    try{
+      const snap = await get(ref(db, "shop-reports/archive/"+id));
+      return snap.exists() ? snap.val() : null;
+    }catch(e){ console.warn("Archive read error:", e); return null; }
+  };
+  window._repArchiveSave = (id, rows) => set(ref(db, "shop-reports/archive/"+id), rows).catch(e => console.warn("Archive save error:", e));
 </script>
 </body>
 </html>
