@@ -1717,6 +1717,7 @@ function finRenderAll(){
   const rentability = ad.realMargin ? finalNet/ad.realMargin : 0;
   const roas = ad.budget ? ad.realMargin/ad.budget : 0;
   const adCosts = ad.realMargin - ad.adProfit; // бюджет+КЦ+повернення
+  const roiAds = adCosts ? ad.adProfit/adCosts : 0; // той самий ROI, що і в "Звітах" (без операційки)
   const totalCosts = adCosts + expTotal;
   const roi = totalCosts ? finalNet/totalCosts : 0;
 
@@ -1767,7 +1768,8 @@ function finRenderAll(){
   const cpaAll = ad.approved ? (expTotal+ad.budget)/ad.approved : 0;
   document.getElementById("fin-units").innerHTML = `
     <div class="fin-unit-card"><div class="fin-unit-lbl">ROAS</div><div class="fin-unit-val" style="color:${rc(roas)}">${fX(roas)}</div><div class="fin-unit-sub">маржа / бюджет реклами</div></div>
-    <div class="fin-unit-card"><div class="fin-unit-lbl">ROI компанії</div><div class="fin-unit-val" style="color:${roic(roi)}">${fP(roi)}</div><div class="fin-unit-sub">чистими / усі витрати</div></div>
+    <div class="fin-unit-card"><div class="fin-unit-lbl">ROI реклами</div><div class="fin-unit-val" style="color:${roic(roiAds)}">${fP(roiAds)}</div><div class="fin-unit-sub">як у "Звітах", без операційки</div></div>
+    <div class="fin-unit-card"><div class="fin-unit-lbl">ROI компанії (з опер.)</div><div class="fin-unit-val" style="color:${roic(roi)}">${fP(roi)}</div><div class="fin-unit-sub">чистими / усі витрати разом</div></div>
     <div class="fin-unit-card"><div class="fin-unit-lbl">Опер. витрата / заявку</div><div class="fin-unit-val">${fmt(cplOps)} ₴</div><div class="fin-unit-sub">без реклами, ${fmt(ad.leads)} заявок</div></div>
     <div class="fin-unit-card"><div class="fin-unit-lbl">Опер. витрата / апрув</div><div class="fin-unit-val">${fmt(cpaOps)} ₴</div><div class="fin-unit-sub">без реклами, ${fmt(ad.approved)} апрувів</div></div>
     <div class="fin-unit-card"><div class="fin-unit-lbl">Витрата / заявку (з рекл.)</div><div class="fin-unit-val">${fmt(cplAll)} ₴</div><div class="fin-unit-sub">опер. + рекламний бюджет</div></div>
