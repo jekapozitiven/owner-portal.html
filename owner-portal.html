@@ -1737,7 +1737,6 @@ function finRenderAll(){
   });
   const catList = Object.values(byCat).filter(c=>c.items.length>0).sort((a,b)=>b.total-a.total);
   const maxCat = Math.max(1,...catList.map(c=>c.total));
-  const catOptions = c => allCats.map(o=>`<option value="${o.key}" ${o.key===c?'selected':''}>${o.icon} ${o.label}</option>`).join("");
 
   document.getElementById("fin-categories").innerHTML = (catList.length ? catList.map(c=>`
     <div class="fin-cat-card">
@@ -1751,12 +1750,8 @@ function finRenderAll(){
       <div class="fin-cat-bar"><div class="fin-cat-bar-fill" style="width:${c.total/maxCat*100}%;background:${c.color}"></div></div>
       <div class="fin-cat-items${finOpenCats.has(c.key)?' open':''}">
         ${c.items.map(it=>`<div class="fin-cat-item" style="align-items:center">
-          <input value="${(it.name||'').replace(/"/g,'&quot;')}" onchange="finEditItem(${it.id},'name',this.value)"
-            style="flex:1;background:0;border:1px solid transparent;border-radius:6px;padding:4px 6px;font-family:inherit;font-size:12.5px;color:var(--text-muted)" onfocus="this.style.borderColor='var(--border-2)'" onblur="this.style.borderColor='transparent'">
-          <select onchange="finEditItem(${it.id},'cat',this.value)"
-            style="background:var(--bg);border:1px solid var(--border-2);border-radius:6px;padding:3px 4px;font-family:inherit;font-size:11px;color:var(--text-muted);max-width:120px">${catOptions(it.cat)}</select>
-          <input type="number" value="${it.amount}" onchange="finEditItem(${it.id},'amount',this.value)"
-            style="width:90px;background:0;border:1px solid var(--border-2);border-radius:6px;padding:4px 6px;text-align:right;font-family:'JetBrains Mono',monospace;font-size:12.5px;color:var(--text)">
+          <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${(it.name||'').replace(/</g,'&lt;')}</span>
+          <b style="font-family:'JetBrains Mono',monospace;color:var(--text);white-space:nowrap">${fmt(it.amount)} ₴</b>
           <button onclick="finDelItem(${it.id})" style="background:0;border:0;color:#C2453B;cursor:pointer;font-size:13px;opacity:.5;padding:2px 4px" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.5">✕</button>
         </div>`).join("")}
       </div>
