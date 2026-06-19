@@ -1304,13 +1304,13 @@ let finCustomCats = [];
 const FIN_CAT_PALETTE = ["#1F6FEB","#C2453B","#7C3AED","#CA8A04","#0E7C5A","#DB2777","#0EA5E9","#F97316"];
 
 const FIN_CATS = [
-  {key:"salary", label:"Зарплати команди", icon:"👥", color:"#1F6FEB",
+  {key:"salary", label:"Зарплати команди", icon:"👥", color:"#F97316",
     match:n=>{const s=n.toLowerCase(); return s.includes("бухгалтер")||s.includes("менеджер")||s.includes("тім ліd")||s.includes("тім лід")||s.includes("тим лид");}},
   {key:"logistics", label:"Логістика та повернення", icon:"📦", color:"#C2453B",
     match:n=>{const s=n.toLowerCase(); return s.includes("доставк")||s.includes("повернен")||s.includes("возврат")||s.includes("компенсац");}},
   {key:"ads", label:"Реклама та податки", icon:"📢", color:"#7C3AED",
     match:n=>{const s=n.toLowerCase(); return s.includes("налог")||s.includes("податок")||s.includes("комис")||s.includes("коміс");}},
-  {key:"services", label:"Сервіси та підписки", icon:"🛠", color:"#CA8A04",
+  {key:"services", label:"Сервіси та підписки", icon:"🛠", color:"#1F6FEB",
     match:n=>{const s=n.toLowerCase(); return s.includes("срм")||s.includes("crm")||s.includes("вайбер")||s.includes("чекбокс")||s.includes("sendpuls")||s.includes("claude")||s.includes("сайт")||s.includes("блинк")||s.includes("blink")||s.includes("пром")||s.includes("телефон")||s.includes("смс")||s.includes("sms");}},
   {key:"office", label:"Інше", icon:"📋", color:"#999",
     match:n=>true}, // універсальний фолбек, завжди останній — ловить усе, що не підійшло вище
@@ -1759,7 +1759,6 @@ function finRenderAll(){
             style="width:90px;background:0;border:1px solid var(--border-2);border-radius:6px;padding:4px 6px;text-align:right;font-family:'JetBrains Mono',monospace;font-size:12.5px;color:var(--text)">
           <button onclick="finDelItem(${it.id})" style="background:0;border:0;color:#C2453B;cursor:pointer;font-size:13px;opacity:.5;padding:2px 4px" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.5">✕</button>
         </div>`).join("")}
-        <button class="btn" style="margin-top:8px;font-size:11px;padding:5px 10px" onclick="finAddItem('${c.key}')">+ Додати статтю</button>
       </div>
     </div>
   `).join("") : '<p class="hint">Немає даних по витратах за цей місяць. Перевір налаштування джерела.</p>')
