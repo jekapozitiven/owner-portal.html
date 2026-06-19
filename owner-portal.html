@@ -1286,14 +1286,6 @@ function repRenderAll(){
 
 repLoadParams();
 
-// відновлюємо останній відкритий екран після перезавантаження сторінки
-(function(){
-  const last = LS.get("bsown:lastScreen");
-  if(last==="app") openApp();
-  else if(last==="reports") openReports();
-  else if(last==="finance") openFinance();
-})();
-
 repLoadSourcesConfig();
 </script>
 
@@ -1382,6 +1374,7 @@ function openFinance(){
   }
   finRenderSettingsTable();
   // переконуємось що дані звітів по магазинах підвантажені (для розрахунку прибутку від реклами)
+  if(!repSources.length) repLoadSourcesConfig();
   if(!repRows.length && !repLoading){ repReload().then(()=>finReload()); }
   else { finReload(); }
 }
@@ -1807,6 +1800,15 @@ function finRenderAll(){
 }
 
 finLoadSourcesConfig();
+
+// відновлюємо останній відкритий екран після перезавантаження сторінки
+// (саме тут, в кінці, бо тільки зараз визначені openApp/openReports/openFinance)
+(function(){
+  const last = LS.get("bsown:lastScreen");
+  if(last==="app") openApp();
+  else if(last==="reports") openReports();
+  else if(last==="finance") openFinance();
+})();
 </script>
 
 <script type="module">
