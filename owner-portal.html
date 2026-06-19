@@ -384,6 +384,7 @@ input[type=number]{-moz-appearance:textfield;}
         <button class="btn btn-primary" onclick="finSaveSettings()">💾 Зберегти і оновити</button>
       </div>
       <p class="hint" style="margin-top:10px">Sheet ID і GID бери з посилання таблиці: .../d/<b>SHEET_ID</b>/edit?gid=<b>GID</b>. Кожен місяць — окрема вкладка в таблиці, окремий GID.</p>
+      <p class="hint" style="margin-top:4px">Категорію визначаю по кольору рядка (фарбуй колонку A): оранжевий → Зарплати, фіолетовий → Реклама та податки, червоний → Логістика та повернення, синій → Сервіси та підписки, сірий → Інше. Якщо колір не розпізнано — можеш як запасний варіант написати назву категорії в колонці D.</p>
     </div>
 
     <div class="fin-month-bar">
@@ -1420,6 +1421,18 @@ function finSaveSettings(){
   finReload();
 }
 
+// текстові мітки категорій у колонці D таблиці → ключ категорії (запасний варіант, якщо колір не визначився)
+function finMatchCatText(text){
+  if(!text) return null;
+  const s = String(text).trim().toLowerCase();
+  if(!s) return null;
+  if(s.includes("зарплат")) return "salary";
+  if(s.includes("реклам")||s.includes("податок")||s.includes("налог")) return "ads";
+  if(s.includes("логістик")||s.includes("логистик")||s.includes("поверн")) return "logistics";
+  if(s.includes("сервіс")||s.includes("сервис")||s.includes("підписк")||s.includes("подписк")) return "services";
+  if(s.includes("інше")||s.includes("иное")||s.includes("друг")) return "office";
+  return null;
+}
 function finParseCsv(csvText){
   const parsed = Papa.parse(csvText.trim(), {skipEmptyLines:false});
   const rows = parsed.data;
@@ -1438,7 +1451,70 @@ function finParseCsv(csvText){
     if(!name) continue;
     const note = String(r[1]||"").trim();
     const amount = repParseNum(r[2]);
-    items.push({id:nid++, name, note, amount, cat:finCategorize(name).key});
+    const catText = String(r[3]||"").trim();
+    const cat = finMatchCatText(catText) || finCategorize(name).key;
+    items.push({id:nid++, name, note, amount, cat});
+  }
+  return {items};
+}
+
+// ── Google Sheets API: читаємо значення І колір фону клітинки (CSV кольору не передає) ──
+const FIN_SHEETS_API_KEY = "AIzaSyAO42G9gH6vtL2f4-wej2fCWEKi3lelYTs";
+async function finFetchSheetData(sheetId, gid){
+  const fields = "sheets(properties(sheetId),data(rowData(values(formattedValue,effectiveValue,userEnteredFormat.backgroundColor))))";
+  const url = "https://sheets.googleapis.com/v4/spreadsheets/"+sheetId+"?fields="+encodeURIComponent(fields)+"&key="+FIN_SHEETS_API_KEY;
+  const res = await fetch(url);
+  if(!res.ok) throw new Error("Sheets API HTTP "+res.status);
+  const data = await res.json();
+  const sheet = (data.sheets||[]).find(s=>String(s.properties.sheetId)===String(gid));
+  if(!sheet) throw new Error("Вкладку з gid "+gid+" не знайдено");
+  const rowData = (sheet.data && sheet.data[0] && sheet.data[0].rowData) || [];
+  return rowData.map(row=>(row.values||[]).map(c=>({
+    text: c.formattedValue || (c.effectiveValue && c.effectiveValue.stringValue) || "",
+    num: (c.effectiveValue && typeof c.effectiveValue.numberValue==="number") ? c.effectiveValue.numberValue : repParseNum(c.formattedValue||""),
+    bg: (c.userEnteredFormat && c.userEnteredFormat.backgroundColor) || null,
+  })));
+}
+// колір клітинки (r,g,b 0..1) → категорія, по тону (hue), щоб не залежати від точного відтінку/пастельності
+function finColorToCategory(bg){
+  if(!bg) return null;
+  const r=(bg.red||0)*255, g=(bg.green||0)*255, b=(bg.blue||0)*255;
+  const max=Math.max(r,g,b), min=Math.min(r,g,b);
+  if(max>242 && min>242) return null; // білий/порожній фон — немає кольору
+  const sat = max ? (max-min)/max : 0;
+  if(sat<0.12) return "office"; // малонасичений = сірий → Інше
+  const d=max-min || 1;
+  let hue;
+  if(max===r) hue=((g-b)/d+6)%6;
+  else if(max===g) hue=(b-r)/d+2;
+  else hue=(r-g)/d+4;
+  hue = (hue*60+360)%360;
+  if(hue>=340 || hue<20) return "logistics"; // червоний
+  if(hue<50) return "salary";    // оранжевий
+  if(hue<170) return null;       // жовтий/зелений — без категорії, фолбек на ключові слова
+  if(hue<250) return "services"; // синій
+  if(hue<330) return "ads";      // фіолетовий
+  return null;
+}
+function finParseSheetRows(rowData){
+  let startIdx = -1;
+  for(let i=0;i<Math.min(rowData.length,8);i++){
+    if(rowData[i] && rowData[i][0] && String(rowData[i][0].text).trim()==="Название"){ startIdx=i+1; break; }
+  }
+  if(startIdx===-1) startIdx = 2;
+  const items = [];
+  let nid = 1;
+  for(let i=startIdx;i<rowData.length;i++){
+    const r = rowData[i] || [];
+    const nameCell = r[0];
+    const name = nameCell ? String(nameCell.text).trim() : "";
+    if(name==="Итого" || name==="Підсумок") break;
+    if(!name) continue;
+    const note = r[1] ? String(r[1].text).trim() : "";
+    const amount = r[2] ? r[2].num : 0;
+    const colorCat = nameCell ? finColorToCategory(nameCell.bg) : null;
+    const cat = colorCat || finCategorize(name).key;
+    items.push({id:nid++, name, note, amount, cat});
   }
   return {items};
 }
@@ -1458,26 +1534,46 @@ async function finReload(){
     if(!cfg.sheetId || !cfg.gid) continue;
     const mk = cfg.year+"-"+cfg.month;
 
-    // архів (включно з ручними правками) має пріоритет завжди — щоб "Оновити дані" не затирало твої правки
+    // спершу архів (твої ручні правки) — він основа
+    let archived = null;
     if(window._finArchiveGet){
-      const archived = await window._finArchiveGet(cfg.id);
-      if(archived && archived.items && archived.items.length){
-        finDataByMonth[mk] = finRowsFromArchive(archived);
-        continue;
-      }
+      archived = await window._finArchiveGet(cfg.id);
     }
+    const base = (archived && archived.items) ? archived : {items:[], deletedNames:[]};
 
-    const url = "https://docs.google.com/spreadsheets/d/"+cfg.sheetId+"/export?format=csv&gid="+cfg.gid;
+    // далі тягнемо свіжі дані (Sheets API — з кольором; якщо не вийшло, відкат на CSV) і домерджуємо ТІЛЬКИ нові рядки
     try{
-      const res = await fetch(url);
-      if(!res.ok) throw new Error("HTTP "+res.status);
-      const text = await res.text();
-      const data = finParseCsv(text);
-      finDataByMonth[mk] = data;
-      if(window._finArchiveSave){
-        window._finArchiveSave(cfg.id, finRowsToArchive(data));
+      let fresh;
+      try{
+        const rowData = await finFetchSheetData(cfg.sheetId, cfg.gid);
+        fresh = finParseSheetRows(rowData);
+      }catch(apiErr){
+        console.warn("Sheets API не відповів, відкат на CSV:", apiErr);
+        const url = "https://docs.google.com/spreadsheets/d/"+cfg.sheetId+"/export?format=csv&gid="+cfg.gid;
+        const res = await fetch(url);
+        if(!res.ok) throw new Error("HTTP "+res.status);
+        const text = await res.text();
+        fresh = finParseCsv(text);
+      }
+      const deletedNames = base.deletedNames || [];
+      let nid = Math.max(0,...base.items.map(x=>x.id||0))+1;
+      let added = false;
+      fresh.items.forEach(fi=>{
+        const key = fi.name.trim().toLowerCase();
+        const exists = base.items.some(it=>it.name.trim().toLowerCase()===key);
+        const wasDeleted = deletedNames.includes(key);
+        if(!exists && !wasDeleted){
+          base.items.push({...fi, id:nid++});
+          added = true;
+        }
+      });
+      finDataByMonth[mk] = base;
+      if(added && window._finArchiveSave){
+        window._finArchiveSave(cfg.id, finRowsToArchive(base));
       }
     }catch(e){
+      // якщо живий запит не вдався — лишаємось на тому, що вже є в архіві
+      finDataByMonth[mk] = base;
       console.warn("Finance load error for", mk, e);
       errors.push(mk);
     }
@@ -1518,6 +1614,11 @@ function finDelItem(id){
   const mk = finCurMk();
   const data = finDataByMonth[mk];
   if(!data) return;
+  const it = data.items.find(x=>x.id===id);
+  if(it){
+    if(!data.deletedNames) data.deletedNames = [];
+    data.deletedNames.push(String(it.name||"").trim().toLowerCase());
+  }
   data.items = data.items.filter(x=>x.id!==id);
   finPersistCurrentMonth();
   finRenderAll();
@@ -1528,12 +1629,19 @@ async function finSyncFromSheet(){
   if(!confirm("Це перетягне дані з Google Таблиці і замінить усі ручні правки за "+(FIN_MONTHS_UA[finCurMonth-1]||"")+" "+finCurYear+". Продовжити?")) return;
   const st = document.getElementById("fin-status");
   if(st) st.textContent = "Синхронізація...";
-  const url = "https://docs.google.com/spreadsheets/d/"+cfg.sheetId+"/export?format=csv&gid="+cfg.gid;
   try{
-    const res = await fetch(url);
-    if(!res.ok) throw new Error("HTTP "+res.status);
-    const text = await res.text();
-    const data = finParseCsv(text);
+    let data;
+    try{
+      const rowData = await finFetchSheetData(cfg.sheetId, cfg.gid);
+      data = finParseSheetRows(rowData);
+    }catch(apiErr){
+      console.warn("Sheets API не відповів, відкат на CSV:", apiErr);
+      const url = "https://docs.google.com/spreadsheets/d/"+cfg.sheetId+"/export?format=csv&gid="+cfg.gid;
+      const res = await fetch(url);
+      if(!res.ok) throw new Error("HTTP "+res.status);
+      const text = await res.text();
+      data = finParseCsv(text);
+    }
     finDataByMonth[finCurMk()] = data;
     finPersistCurrentMonth();
     if(st) st.textContent = "Синхронізовано "+new Date().toLocaleTimeString("uk-UA");
