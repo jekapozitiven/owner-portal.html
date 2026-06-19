@@ -170,6 +170,17 @@ input[type=number]{-moz-appearance:textfield;}
 .fin-cat-item{display:flex;justify-content:space-between;gap:10px;font-size:12.5px;padding:6px 0;border-top:1px solid var(--border-3);color:var(--text-muted);}
 .fin-cat-item b{color:var(--text);font-family:'JetBrains Mono',monospace;font-weight:600;}
 .fin-set-row{display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap;}
+.fin-unit-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:22px;}
+.fin-unit-card{background:var(--surface);border:1px solid var(--border-2);border-radius:12px;padding:14px 16px;}
+.fin-unit-lbl{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);font-weight:700;margin-bottom:6px;}
+.fin-unit-val{font-family:'JetBrains Mono',monospace;font-size:19px;font-weight:700;}
+.fin-unit-sub{font-size:10.5px;color:var(--text-muted);margin-top:4px;}
+.fin-donut-card{background:var(--surface);border:1px solid var(--border-2);border-radius:14px;padding:20px;margin-bottom:22px;display:flex;align-items:center;gap:28px;flex-wrap:wrap;}
+.fin-donut-legend{flex:1;min-width:220px;display:flex;flex-direction:column;gap:9px;}
+.fin-donut-legend-row{display:flex;align-items:center;gap:9px;font-size:12.5px;}
+.fin-donut-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+.fin-donut-legend-name{flex:1;color:var(--text-muted);}
+.fin-donut-legend-val{font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--text);}
 
 /* DAYS TABLE (warm theme) */
 .days-wrap{background:linear-gradient(180deg,#FFF8EA,#FFF2D9);border:1px solid #F0CE8F;border-radius:14px;padding:6px;margin-top:12px;overflow-x:auto;}
@@ -395,6 +406,12 @@ input[type=number]{-moz-appearance:textfield;}
 
     <div class="fin-summary" id="fin-summary"></div>
     <div class="fin-flow" id="fin-flow"></div>
+
+    <div style="font-size:13px;font-weight:700;margin:22px 0 12px">Юніт-економіка</div>
+    <div class="fin-unit-grid" id="fin-units"></div>
+
+    <div style="font-size:13px;font-weight:700;margin:0 0 12px">📊 Операційні витрати</div>
+    <div class="fin-donut-card" id="fin-donut"></div>
 
     <div style="font-size:13px;font-weight:700;margin:22px 0 12px">Операційні витрати по категоріях</div>
     <div class="fin-cat-grid" id="fin-categories"></div>
@@ -1665,15 +1682,16 @@ function finGetMonthlyAdProfit(year, month){
     if(!byShop[k]) byShop[k]=[];
     byShop[k].push(r);
   });
-  let totalBudget=0, totalRealMargin=0, totalNet=0;
+  let totalBudget=0, totalRealMargin=0, totalNet=0, totalLeads=0, totalApproved=0;
   Object.entries(byShop).forEach(([key,shopRows])=>{
     const buyoutPct = repGetBuyout(key);
     const kcPct = repGetKc(key);
     const returnCostUnit = repGetReturnCost(key);
     const m = repCalcShop(shopRows, buyoutPct, kcPct, returnCostUnit);
     totalBudget+=m.budget; totalRealMargin+=m.realMargin; totalNet+=m.net;
+    totalLeads+=m.leads; totalApproved+=m.approved;
   });
-  return {budget:totalBudget, realMargin:totalRealMargin, adProfit:totalNet, hasData: rows.length>0};
+  return {budget:totalBudget, realMargin:totalRealMargin, adProfit:totalNet, leads:totalLeads, approved:totalApproved, hasData: rows.length>0};
 }
 
 function finToggleCat(key){
@@ -1697,6 +1715,10 @@ function finRenderAll(){
   const ad = finGetMonthlyAdProfit(finCurYear, finCurMonth);
   const finalNet = ad.adProfit - expTotal;
   const rentability = ad.realMargin ? finalNet/ad.realMargin : 0;
+  const roas = ad.budget ? ad.realMargin/ad.budget : 0;
+  const adCosts = ad.realMargin - ad.adProfit; // бюджет+КЦ+повернення
+  const totalCosts = adCosts + expTotal;
+  const roi = totalCosts ? finalNet/totalCosts : 0;
 
   document.getElementById("fin-summary").innerHTML = `
     <div class="fin-sum-card"><div class="fin-sum-lbl">Маржа (реальна)</div><div class="fin-sum-val">${fmt(ad.realMargin)} ₴</div><div class="fin-sum-sub">з урах. викупу, зі "Звітів"</div></div>
@@ -1737,6 +1759,52 @@ function finRenderAll(){
   });
   const catList = Object.values(byCat).filter(c=>c.items.length>0).sort((a,b)=>b.total-a.total);
   const maxCat = Math.max(1,...catList.map(c=>c.total));
+
+  // юніт-економіка: ціна заявки/апруву з опер. витрат компанії окремо, і разом з рекламним бюджетом
+  const cplOps = ad.leads ? expTotal/ad.leads : 0;
+  const cpaOps = ad.approved ? expTotal/ad.approved : 0;
+  const cplAll = ad.leads ? (expTotal+ad.budget)/ad.leads : 0;
+  const cpaAll = ad.approved ? (expTotal+ad.budget)/ad.approved : 0;
+  document.getElementById("fin-units").innerHTML = `
+    <div class="fin-unit-card"><div class="fin-unit-lbl">ROAS</div><div class="fin-unit-val" style="color:${rc(roas)}">${fX(roas)}</div><div class="fin-unit-sub">маржа / бюджет реклами</div></div>
+    <div class="fin-unit-card"><div class="fin-unit-lbl">ROI компанії</div><div class="fin-unit-val" style="color:${roic(roi)}">${fP(roi)}</div><div class="fin-unit-sub">чистими / усі витрати</div></div>
+    <div class="fin-unit-card"><div class="fin-unit-lbl">Опер. витрата / заявку</div><div class="fin-unit-val">${fmt(cplOps)} ₴</div><div class="fin-unit-sub">без реклами, ${fmt(ad.leads)} заявок</div></div>
+    <div class="fin-unit-card"><div class="fin-unit-lbl">Опер. витрата / апрув</div><div class="fin-unit-val">${fmt(cpaOps)} ₴</div><div class="fin-unit-sub">без реклами, ${fmt(ad.approved)} апрувів</div></div>
+    <div class="fin-unit-card"><div class="fin-unit-lbl">Витрата / заявку (з рекл.)</div><div class="fin-unit-val">${fmt(cplAll)} ₴</div><div class="fin-unit-sub">опер. + рекламний бюджет</div></div>
+    <div class="fin-unit-card"><div class="fin-unit-lbl">Витрата / апрув (з рекл.)</div><div class="fin-unit-val">${fmt(cpaAll)} ₴</div><div class="fin-unit-sub">опер. + рекламний бюджет</div></div>
+  `;
+
+  // донат-діаграма операційних витрат по категоріях
+  const donutEl = document.getElementById("fin-donut");
+  if(!catList.length){
+    donutEl.innerHTML = '<p class="hint">Немає даних по витратах за цей місяць.</p>';
+  } else {
+    const R = 70, CIRC = 2*Math.PI*R;
+    let offsetAcc = 0;
+    const segments = catList.map(c=>{
+      const frac = expTotal ? c.total/expTotal : 0;
+      const len = frac*CIRC;
+      const seg = `<circle cx="90" cy="90" r="${R}" fill="none" stroke="${c.color}" stroke-width="26"
+        stroke-dasharray="${len} ${CIRC-len}" stroke-dashoffset="${CIRC-offsetAcc}" transform="rotate(-90 90 90)"/>`;
+      offsetAcc += len;
+      return seg;
+    }).join("");
+    donutEl.innerHTML = `
+      <svg width="180" height="180" viewBox="0 0 180 180">
+        ${segments}
+        <circle cx="90" cy="90" r="50" fill="var(--surface)"/>
+        <text x="90" y="85" text-anchor="middle" font-size="11" fill="var(--text-muted)" font-family="Inter,sans-serif">Всього</text>
+        <text x="90" y="103" text-anchor="middle" font-size="14" font-weight="700" fill="var(--text)" font-family="'JetBrains Mono',monospace">${fmt(expTotal)}</text>
+      </svg>
+      <div class="fin-donut-legend">
+        ${catList.map(c=>`<div class="fin-donut-legend-row">
+          <span class="fin-donut-dot" style="background:${c.color}"></span>
+          <span class="fin-donut-legend-name">${c.icon} ${c.label}</span>
+          <span class="fin-donut-legend-val">${expTotal?Math.round(c.total/expTotal*100):0}% · ${fmt(c.total)} ₴</span>
+        </div>`).join("")}
+      </div>
+    `;
+  }
 
   document.getElementById("fin-categories").innerHTML = (catList.length ? catList.map(c=>`
     <div class="fin-cat-card">
