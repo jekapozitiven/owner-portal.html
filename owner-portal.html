@@ -381,6 +381,7 @@ input[type=number]{-moz-appearance:textfield;}
           <div class="prepay-fld"><label>Дата</label><input type="date" id="prepay-date"></div>
           <div class="prepay-fld"><label>Prom оплата</label><input type="number" id="prepay-prom" min="0" placeholder="0"></div>
           <div class="prepay-fld"><label>Оплата на ФОП</label><input type="number" id="prepay-fop" min="0" placeholder="0"></div>
+          <div class="prepay-fld"><label>Оплата на карту</label><input type="number" id="prepay-card" min="0" placeholder="0"></div>
           <button class="btn btn-primary" onclick="prepaySave()">💾 Зберегти</button>
         </div>
         <div class="prepay-list" id="prepay-list"></div>
@@ -1221,9 +1222,10 @@ function repToggleTotalExpand(){
   repRenderAll();
 }
 
-let repActiveTab = "shops";
+let repActiveTab = LS.get("bsrep:activeTab") || "shops";
 function repSwitchTab(tab){
   repActiveTab = tab;
+  LS.set("bsrep:activeTab", tab);
   document.getElementById("rep-tab-btn-shops").classList.toggle("on", tab==="shops");
   document.getElementById("rep-tab-btn-stats").classList.toggle("on", tab==="stats");
   document.getElementById("rep-pane-shops").style.display = tab==="shops" ? "block" : "none";
@@ -1398,10 +1400,12 @@ function prepaySave(){
   const dateKey = dateEl.value || new Date().toISOString().slice(0,10);
   const prom = parseInt(document.getElementById("prepay-prom").value)||0;
   const fop = parseInt(document.getElementById("prepay-fop").value)||0;
-  prepayData[dateKey] = {prom, fop};
+  const card = parseInt(document.getElementById("prepay-card").value)||0;
+  prepayData[dateKey] = {prom, fop, card};
   prepaySaveAll();
   document.getElementById("prepay-prom").value = "";
   document.getElementById("prepay-fop").value = "";
+  document.getElementById("prepay-card").value = "";
   prepayRenderList();
   if(repActiveTab==="stats") renderUpsellStats();
 }
@@ -1417,36 +1421,39 @@ function prepayRenderList(){
   const entries = Object.entries(prepayData).sort((a,b)=>b[0].localeCompare(a[0])).slice(0,10);
   el.innerHTML = entries.map(([dateKey,v])=>{
     const [y,m,d] = dateKey.split("-");
+    const card = v.card||0;
     return `<div class="prepay-list-row">
       <span style="font-weight:600;color:var(--text)">${d}.${m}.${y}</span>
       <span>Prom: <b>${v.prom}</b></span>
       <span>ФОП: <b>${v.fop}</b></span>
-      <span style="margin-left:auto">Всього: <b>${v.prom+v.fop}</b></span>
+      <span>Карта: <b>${card}</b></span>
+      <span style="margin-left:auto">Всього: <b>${v.prom+v.fop+card}</b></span>
       <button onclick="prepayDelete('${dateKey}')" style="background:0;border:0;color:#C2453B;cursor:pointer;opacity:.5" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.5">✕</button>
     </div>`;
   }).join("") || '<p class="hint" style="margin:6px 0 0">Записів ще немає.</p>';
 }
 function prepayTotalsForPeriod(){
   const [start,end] = repGetDateRange();
-  let prom=0, fop=0, days=0;
+  let prom=0, fop=0, card=0, days=0;
   Object.entries(prepayData).forEach(([dateKey,v])=>{
     const d = new Date(dateKey+"T00:00:00");
     if(start && d<start) return;
     if(end){ const e=new Date(end); e.setHours(23,59,59,999); if(d>e) return; }
-    prom+=v.prom; fop+=v.fop; days++;
+    prom+=v.prom; fop+=v.fop; card+=(v.card||0); days++;
   });
-  return {prom, fop, total:prom+fop, days};
+  return {prom, fop, card, total:prom+fop+card, days};
 }
 function renderPrepayStats(){
   const el = document.getElementById("prepay-kpis");
   if(!el) return;
   const t = prepayTotalsForPeriod();
   const totalLeads = repFilteredRows().reduce((a,r)=>a+r.leads,0);
-  const pctOfOrders = n => totalLeads ? fP(n/totalLeads) : "—";
+  const pctOfTotal = n => t.total ? fP(n/t.total) : "—";
   el.innerHTML = `
-    <div class="kpi"><div class="kpi-lbl">Всього передоплат</div><div class="kpi-val">${fmt(t.total)}</div><div class="kpi-sub">${pctOfOrders(t.total)} від усіх заявок (${fmt(totalLeads)})</div></div>
-    <div class="kpi"><div class="kpi-lbl">Prom оплата</div><div class="kpi-val" style="color:#7C3AED">${fmt(t.prom)}</div><div class="kpi-sub">${pctOfOrders(t.prom)} від усіх заявок</div></div>
-    <div class="kpi"><div class="kpi-lbl">Оплата на ФОП</div><div class="kpi-val" style="color:#1F6FEB">${fmt(t.fop)}</div><div class="kpi-sub">${pctOfOrders(t.fop)} від усіх заявок</div></div>
+    <div class="kpi"><div class="kpi-lbl">Всього онлайн-оплат</div><div class="kpi-val">${fmt(t.total)}</div><div class="kpi-sub">${totalLeads?fP(t.total/totalLeads):"—"} від усіх заявок (${fmt(totalLeads)})</div></div>
+    <div class="kpi"><div class="kpi-lbl">Prom оплата</div><div class="kpi-val" style="color:#7C3AED">${fmt(t.prom)}</div><div class="kpi-sub">${pctOfTotal(t.prom)} від онлайн-оплат</div></div>
+    <div class="kpi"><div class="kpi-lbl">Оплата на ФОП</div><div class="kpi-val" style="color:#1F6FEB">${fmt(t.fop)}</div><div class="kpi-sub">${pctOfTotal(t.fop)} від онлайн-оплат</div></div>
+    <div class="kpi"><div class="kpi-lbl">Оплата на карту</div><div class="kpi-val" style="color:#0E7C5A">${fmt(t.card)}</div><div class="kpi-sub">${pctOfTotal(t.card)} від онлайн-оплат</div></div>
   `;
 }
 
@@ -2086,10 +2093,14 @@ finLoadSourcesConfig();
 // відновлюємо останній відкритий екран після перезавантаження сторінки
 // (саме тут, в кінці, бо тільки зараз визначені openApp/openReports/openFinance)
 (function(){
-  const last = LS.get("bsown:lastScreen");
-  if(last==="app") openApp();
-  else if(last==="reports") openReports();
-  else if(last==="finance") openFinance();
+  try{
+    const last = LS.get("bsown:lastScreen");
+    if(last==="app") openApp();
+    else if(last==="reports") openReports();
+    else if(last==="finance") openFinance();
+  }catch(e){
+    console.warn("Не вдалось відновити останній екран:", e);
+  }
 })();
 </script>
 
