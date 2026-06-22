@@ -2154,7 +2154,7 @@ finLoadSourcesConfig();
       weeks = val;
       cur = weeks[weeks.length-1].id;
       if(document.getElementById("app").style.display !== "none") render();
-    } else { loaded = true; }
+    }
   });
   window._fbSave = (data) => set(dbRef, data).catch(e => console.warn("FB error:", e));
   const st = document.getElementById("fb-status");
@@ -2172,7 +2172,7 @@ finLoadSourcesConfig();
         repRenderSettingsTable();
         repReload();
       }
-    } else { repFbLoaded = true; }
+    }
   });
   window._repFbSave = (data) => set(repDbRef, data).catch(e => console.warn("Reports FB error:", e));
 
@@ -2190,7 +2190,7 @@ finLoadSourcesConfig();
       if(document.getElementById("app-finance") && document.getElementById("app-finance").style.display !== "none"){
         finRenderAll();
       }
-    } else { repParamsFbLoaded = true; }
+    }
   });
   window._repFbSaveParams = (data) => set(repParamsDbRef, data).catch(e => console.warn("Reports params FB error:", e));
 
@@ -2206,7 +2206,7 @@ finLoadSourcesConfig();
       if(document.getElementById("app-reports") && document.getElementById("app-reports").style.display !== "none" && repActiveTab==="stats"){
         renderUpsellStats();
       }
-    } else { prepayFbLoaded = true; }
+    }
   });
   window._prepayFbSave = (data) => set(prepayDbRef, data).catch(e => console.warn("Prepay FB error:", e));
 
@@ -2231,7 +2231,7 @@ finLoadSourcesConfig();
         finRenderSettingsTable();
         finReload();
       }
-    } else { finFbLoaded = true; }
+    }
   });
   window._finFbSave = (data) => set(finDbRef, data).catch(e => console.warn("Finance FB error:", e));
 
@@ -2246,7 +2246,7 @@ finLoadSourcesConfig();
       if(document.getElementById("app-finance") && document.getElementById("app-finance").style.display !== "none"){
         finRenderAll();
       }
-    } else { finCatsFbLoaded = true; }
+    }
   });
   window._finFbSaveCats = (data) => set(finCatsDbRef, data).catch(e => console.warn("Finance cats FB error:", e));
 
