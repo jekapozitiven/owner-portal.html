@@ -490,6 +490,25 @@ applyTheme(localStorage.getItem("bsown:theme") || "light");
 const LS={get:k=>{try{return JSON.parse(localStorage.getItem(k));}catch(e){return null;}
 },set:(k,v)=>localStorage.setItem(k,JSON.stringify(v))};
 
+// ── надійна синхронізація налаштувань через звичайний HTTPS (REST), без WebSocket ──
+// SDK Firebase Realtime Database тримає постійне з'єднання, яке деякі мобільні мережі блокують;
+// простий fetch до того ж REST-API працює завжди, так само як завантаження Google Таблиць.
+const FB_DB_URL = "https://owner-portal-1649e-default-rtdb.europe-west1.firebasedatabase.app";
+async function fbRestGet(path){
+  try{
+    const res = await fetch(FB_DB_URL+"/"+path+".json");
+    if(!res.ok) return null;
+    return await res.json();
+  }catch(e){ console.warn("FB REST get error:", path, e); return null; }
+}
+function fbRestSet(path, data){
+  return fetch(FB_DB_URL+"/"+path+".json", {
+    method:"PUT",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify(data)
+  }).catch(e => console.warn("FB REST set error:", path, e));
+}
+
 let weeks=[],cur=null,_i=0;
 const nid=()=>Date.now()+(++_i);
 const ec=()=>({id:nid(),name:"Кампанія",leads:0,orders:0,budget:0,margin:0});
@@ -803,9 +822,20 @@ function repLoadSourcesConfig(){
   const saved = LS.get(REP_LS_KEY);
   repSources = (saved && saved.length) ? saved : JSON.parse(JSON.stringify(REP_DEFAULT_SOURCES));
 }
+async function repSyncSourcesFromCloud(){
+  const val = await fbRestGet("shop-reports/sources");
+  if(val && Array.isArray(val) && val.length){
+    repSources = val;
+    LS.set(REP_LS_KEY, repSources);
+    if(document.getElementById("app-reports") && document.getElementById("app-reports").style.display !== "none"){
+      repRenderSettingsTable();
+      repReload();
+    }
+  }
+}
 function repSaveSourcesConfig(){
   LS.set(REP_LS_KEY, repSources);
-  if(window._repFbSave) window._repFbSave(repSources);
+  fbRestSet("shop-reports/sources", repSources);
 }
 
 function openReports(){
@@ -880,17 +910,27 @@ function repLoadParams(){
   const saved = LS.get(REP_PARAMS_KEY);
   if(saved) repParams = {buyouts:saved.buyouts||{}, kc:saved.kc||{}, returnCost:(saved.returnCost&&typeof saved.returnCost==='object')?saved.returnCost:{}};
 }
+async function repSyncParamsFromCloud(){
+  const val = await fbRestGet("shop-reports/params");
+  if(val){
+    repParams = {buyouts:val.buyouts||{}, kc:val.kc||{}, returnCost:(val.returnCost&&typeof val.returnCost==='object')?val.returnCost:{}};
+    LS.set(REP_PARAMS_KEY, repParams);
+    if(document.getElementById("app-reports") && document.getElementById("app-reports").style.display !== "none"){
+      repRenderAll();
+    }
+    if(document.getElementById("app-finance") && document.getElementById("app-finance").style.display !== "none"){
+      finRenderAll();
+    }
+  }
+}
 function repSaveParams(){
   LS.set(REP_PARAMS_KEY, repParams);
-  if(window._repFbSaveParams) window._repFbSaveParams(repParams);
+  fbRestSet("shop-reports/params", repParams);
 }
 function repForceSyncParams(){
-  if(window._repFbSaveParams){
-    window._repFbSaveParams(repParams);
+  fbRestSet("shop-reports/params", repParams).then(()=>{
     alert("Готово! Налаштування магазинів (викуп/КЦ/повернення) відправлені в хмару. На інших пристроях вони з'являться після перезавантаження сторінки.");
-  } else {
-    alert("Firebase ще не підключився, спробуй за кілька секунд ще раз.");
-  }
+  });
 }
 function repGetBuyout(key){
   return repParams.buyouts[key]!==undefined ? repParams.buyouts[key] : 65;
@@ -1405,9 +1445,20 @@ function prepayLoad(){
   const saved = LS.get("bsrep:prepay");
   if(saved) prepayData = saved;
 }
+async function prepaySyncFromCloud(){
+  const val = await fbRestGet("shop-reports/prepayments");
+  if(val){
+    prepayData = val;
+    LS.set("bsrep:prepay", prepayData);
+    prepayRenderList();
+    if(document.getElementById("app-reports") && document.getElementById("app-reports").style.display !== "none" && repActiveTab==="stats"){
+      renderUpsellStats();
+    }
+  }
+}
 function prepaySaveAll(){
   LS.set("bsrep:prepay", prepayData);
-  if(window._prepayFbSave) window._prepayFbSave(prepayData);
+  fbRestSet("shop-reports/prepayments", prepayData);
 }
 function prepaySave(){
   const dateEl = document.getElementById("prepay-date");
@@ -1540,7 +1591,11 @@ function renderUpsellStats(){
 }
 
 repLoadParams();
+repSyncParamsFromCloud();
+if(!repSources.length) repLoadSourcesConfig();
+repSyncSourcesFromCloud();
 prepayLoad();
+prepaySyncFromCloud();
 
 repLoadSourcesConfig();
 </script>
@@ -1580,9 +1635,19 @@ function finLoadCustomCats(){
   const saved = LS.get("bsfin:customcats");
   finCustomCats = saved || [];
 }
+async function finSyncCustomCatsFromCloud(){
+  const val = await fbRestGet("finance/categories");
+  if(val && Array.isArray(val)){
+    finCustomCats = val;
+    LS.set("bsfin:customcats", finCustomCats);
+    if(document.getElementById("app-finance") && document.getElementById("app-finance").style.display !== "none"){
+      finRenderAll();
+    }
+  }
+}
 function finSaveCustomCats(){
   LS.set("bsfin:customcats", finCustomCats);
-  if(window._finFbSaveCats) window._finFbSaveCats(finCustomCats);
+  fbRestSet("finance/categories", finCustomCats);
 }
 function finAddCategory(){
   const name = prompt("Назва нової категорії витрат:");
@@ -1609,9 +1674,20 @@ function finLoadSourcesConfig(){
   const saved = LS.get(FIN_LS_KEY);
   finSources = (saved && saved.length) ? saved : JSON.parse(JSON.stringify(FIN_DEFAULT_SOURCES));
 }
+async function finSyncSourcesFromCloud(){
+  const val = await fbRestGet("finance/sources");
+  if(val && Array.isArray(val) && val.length){
+    finSources = val;
+    LS.set(FIN_LS_KEY, finSources);
+    if(document.getElementById("app-finance") && document.getElementById("app-finance").style.display !== "none"){
+      finRenderSettingsTable();
+      finReload();
+    }
+  }
+}
 function finSaveSourcesConfig(){
   LS.set(FIN_LS_KEY, finSources);
-  if(window._finFbSave) window._finFbSave(finSources);
+  fbRestSet("finance/sources", finSources);
 }
 
 function openFinance(){
@@ -2105,6 +2181,9 @@ function finRenderAll(){
 }
 
 finLoadSourcesConfig();
+finSyncSourcesFromCloud();
+finLoadCustomCats();
+finSyncCustomCatsFromCloud();
 
 // відновлюємо останній відкритий екран після перезавантаження сторінки
 // (саме тут, в кінці, бо тільки зараз визначені openApp/openReports/openFinance)
