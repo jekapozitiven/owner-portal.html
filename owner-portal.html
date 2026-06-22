@@ -1332,6 +1332,11 @@ function repRenderAll(){
 
 // ── Допродажі (окремий Firebase-проєкт "apsell-48b8e") ──
 let upsellOrders = [];
+let upsellLbExpanded = false;
+function toggleUpsellLb(){
+  upsellLbExpanded = !upsellLbExpanded;
+  renderUpsellStats();
+}
 function upsellParseDate(s){
   if(!s) return null;
   const p = s.split(".");
@@ -1363,10 +1368,14 @@ function renderUpsellStats(){
     else if(o.status==="refused"){ refused.count++; refused.amount+=amt; }
     else { inWork.count++; inWork.amount+=amt; }
     if(byType[o.type]!==undefined) byType[o.type]+=amt;
-    if(!byManager[o.manager]) byManager[o.manager]={count:0,amount:0,received:0};
-    byManager[o.manager].count++;
-    byManager[o.manager].amount+=amt;
-    if(o.status==="received") byManager[o.manager].received+=amt;
+    if(!byManager[o.manager]) byManager[o.manager]={count:0,amount:0,
+      received:{count:0,amount:0}, refused:{count:0,amount:0}, inWork:{count:0,amount:0}, byType:{"Повітря":0,"Товар":0}};
+    const m = byManager[o.manager];
+    m.count++; m.amount+=amt;
+    if(o.status==="received"){ m.received.count++; m.received.amount+=amt; }
+    else if(o.status==="refused"){ m.refused.count++; m.refused.amount+=amt; }
+    else { m.inWork.count++; m.inWork.amount+=amt; }
+    if(m.byType[o.type]!==undefined) m.byType[o.type]+=amt;
   });
   const totalCount = filtered.length;
   const totalAmount = received.amount+refused.amount+inWork.amount;
@@ -1382,22 +1391,34 @@ function renderUpsellStats(){
   `;
 
   const mgrList = Object.entries(byManager).map(([name,s])=>({name,...s})).sort((a,b)=>b.amount-a.amount);
-  lbEl.innerHTML = mgrList.length ? `
+  lbEl.innerHTML = `
     <div class="sb">
-      <div class="sb-t">🏆 Рейтинг менеджерів</div>
-      <div class="scroll"><table>
-        <thead><tr><th style="text-align:left">Менеджер</th><th>Допродажів</th><th>На суму</th><th>Отримано (успішно)</th></tr></thead>
-        <tbody>
-          ${mgrList.map(m=>`<tr>
-            <td style="text-align:left;font-weight:600;padding:8px">${m.name}</td>
-            <td class="r" style="padding:8px">${fmt(m.count)}</td>
-            <td class="r" style="padding:8px">${fmt(m.amount)} ₴</td>
-            <td class="r" style="padding:8px;color:#0E7C5A;font-weight:600">${fmt(m.received)} ₴</td>
-          </tr>`).join("")}
-        </tbody>
-      </table></div>
+      <div class="sb-t" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between" onclick="toggleUpsellLb()">
+        <span>🏆 Рейтинг менеджерів</span>
+        <span style="font-size:11px;color:var(--text-muted);font-weight:600">${upsellLbExpanded?'▴ Згорнути':'▾ Показати ('+mgrList.length+')'}</span>
+      </div>
+      ${upsellLbExpanded ? (mgrList.length ? `<div style="padding:14px 18px;display:flex;flex-direction:column;gap:10px">
+        ${mgrList.map(m=>{
+          const mConv = (m.received.count+m.refused.count) ? m.received.count/(m.received.count+m.refused.count) : 0;
+          return `<div class="rep-src-card" style="margin-bottom:0">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+              <span style="font-weight:700;font-size:14px">${m.name}</span>
+              <div style="margin-left:auto;text-align:right">
+                <div style="font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700">${fmt(m.amount)} ₴</div>
+                <div style="font-size:11px;color:var(--text-muted)">${fmt(m.count)} допродажів · ${fP(mConv)} успішних</div>
+              </div>
+            </div>
+            <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--text-muted)">
+              <span>Отримано: <b style="color:#0E7C5A;font-family:'JetBrains Mono',monospace">${fmt(m.received.amount)} ₴</b> (${fmt(m.received.count)} шт.)</span>
+              <span>В роботі: <b style="color:#CA8A04;font-family:'JetBrains Mono',monospace">${fmt(m.inWork.amount)} ₴</b> (${fmt(m.inWork.count)} шт.)</span>
+              <span>Відмови: <b style="color:#C2453B;font-family:'JetBrains Mono',monospace">${fmt(m.refused.amount)} ₴</b> (${fmt(m.refused.count)} шт.)</span>
+              <span>Повітря/Товар: <b style="color:var(--text);font-family:'JetBrains Mono',monospace">${fmt(m.byType["Повітря"])} / ${fmt(m.byType["Товар"])} ₴</b></span>
+            </div>
+          </div>`;
+        }).join("")}
+      </div>` : '<p class="hint">Немає допродажів за обраний період.</p>') : ''}
     </div>
-  ` : '<p class="hint">Немає допродажів за обраний період.</p>';
+  `;
 }
 
 repLoadParams();
