@@ -1441,10 +1441,12 @@ function renderPrepayStats(){
   const el = document.getElementById("prepay-kpis");
   if(!el) return;
   const t = prepayTotalsForPeriod();
+  const totalLeads = repFilteredRows().reduce((a,r)=>a+r.leads,0);
+  const pctOfOrders = n => totalLeads ? fP(n/totalLeads) : "—";
   el.innerHTML = `
-    <div class="kpi"><div class="kpi-lbl">Всього передоплат</div><div class="kpi-val">${fmt(t.total)}</div><div class="kpi-sub">${t.days} днів із записами</div></div>
-    <div class="kpi"><div class="kpi-lbl">Prom оплата</div><div class="kpi-val" style="color:#7C3AED">${fmt(t.prom)}</div><div class="kpi-sub">${t.total?Math.round(t.prom/t.total*100):0}% від усіх</div></div>
-    <div class="kpi"><div class="kpi-lbl">Оплата на ФОП</div><div class="kpi-val" style="color:#1F6FEB">${fmt(t.fop)}</div><div class="kpi-sub">${t.total?Math.round(t.fop/t.total*100):0}% від усіх</div></div>
+    <div class="kpi"><div class="kpi-lbl">Всього передоплат</div><div class="kpi-val">${fmt(t.total)}</div><div class="kpi-sub">${pctOfOrders(t.total)} від усіх заявок (${fmt(totalLeads)})</div></div>
+    <div class="kpi"><div class="kpi-lbl">Prom оплата</div><div class="kpi-val" style="color:#7C3AED">${fmt(t.prom)}</div><div class="kpi-sub">${pctOfOrders(t.prom)} від усіх заявок</div></div>
+    <div class="kpi"><div class="kpi-lbl">Оплата на ФОП</div><div class="kpi-val" style="color:#1F6FEB">${fmt(t.fop)}</div><div class="kpi-sub">${pctOfOrders(t.fop)} від усіх заявок</div></div>
   `;
 }
 
