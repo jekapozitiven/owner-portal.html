@@ -136,6 +136,17 @@ input[type=number]{-moz-appearance:textfield;}
 .sb{background:var(--surface);border:1px solid var(--border-2);border-radius:12px;overflow:hidden;margin-bottom:12px;}
 .sb-t{font-size:13px;font-weight:700;padding:13px 18px;border-bottom:1px solid var(--border-3);}
 
+/* PREPAYMENTS */
+.prepay-card{background:var(--surface);border:1px solid var(--border-2);border-radius:12px;padding:16px 18px;margin-bottom:14px;}
+.prepay-row{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;}
+.prepay-fld{display:flex;flex-direction:column;gap:4px;}
+.prepay-fld label{font-size:11px;color:var(--text-muted);font-weight:600;}
+.prepay-fld input{background:var(--bg);border:1px solid var(--border-1);border-radius:7px;padding:7px 10px;font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--text);outline:none;width:110px;}
+.prepay-fld input:focus{border-color:var(--text);}
+.prepay-list{margin-top:12px;display:flex;flex-direction:column;gap:6px;max-height:180px;overflow-y:auto;}
+.prepay-list-row{display:flex;align-items:center;gap:12px;font-size:12.5px;color:var(--text-muted);padding:6px 0;border-top:1px solid var(--border-3);}
+.prepay-list-row b{color:var(--text);font-family:'JetBrains Mono',monospace;}
+
 /* FINANCE */
 .fin-month-bar{display:flex;align-items:center;gap:14px;margin-bottom:18px;}
 .fin-month-arrow{background:var(--surface);border:1px solid var(--border-2);border-radius:8px;width:36px;height:36px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:14px;transition:.15s;}
@@ -364,6 +375,17 @@ input[type=number]{-moz-appearance:textfield;}
 
     <!-- PANE: МАГАЗИНИ -->
     <div id="rep-pane-shops">
+      <div class="prepay-card">
+        <div style="font-size:13px;font-weight:700;margin-bottom:12px">📝 Облік передоплат</div>
+        <div class="prepay-row">
+          <div class="prepay-fld"><label>Дата</label><input type="date" id="prepay-date"></div>
+          <div class="prepay-fld"><label>Prom оплата</label><input type="number" id="prepay-prom" min="0" placeholder="0"></div>
+          <div class="prepay-fld"><label>Оплата на ФОП</label><input type="number" id="prepay-fop" min="0" placeholder="0"></div>
+          <button class="btn btn-primary" onclick="prepaySave()">💾 Зберегти</button>
+        </div>
+        <div class="prepay-list" id="prepay-list"></div>
+      </div>
+
       <div id="rep-sources"></div>
 
       <div class="sb" style="padding:20px;margin-top:4px" id="rep-chart-card">
@@ -382,6 +404,10 @@ input[type=number]{-moz-appearance:textfield;}
       <div class="kpis" id="upsell-kpis"></div>
       <div id="upsell-leaderboard" style="margin-top:14px"></div>
       <p class="hint">Допродажі тягнуться окремо з застосунку "Допродажі" (Firebase), за той самий період, що обраний вище.</p>
+
+      <div style="font-size:13px;font-weight:700;margin:24px 0 12px">💳 Передоплати</div>
+      <div class="kpis" id="prepay-kpis"></div>
+      <p class="hint">Введені вручну на вкладці "Магазини", за той самий період, що обраний вище.</p>
     </div>
 
     <p class="hint">Дані тягнуться напряму з Google Таблиць (CSV). Натисни «Оновити дані» щоб підвантажити свіжі цифри.</p>
@@ -788,6 +814,9 @@ function openReports(){
   repRenderPeriodPills();
   repRenderSettingsTable();
   repSwitchTab(repActiveTab);
+  const pd = document.getElementById("prepay-date");
+  if(pd && !pd.value) pd.value = new Date().toISOString().slice(0,10);
+  prepayRenderList();
   if(repRows.length){ repRenderAll(); }
   else { repReload(); }
 }
@@ -1354,7 +1383,73 @@ function upsellFilteredOrders(){
     return true;
   });
 }
+// ── Передоплати (вручну, зберігаються в Firebase shop-reports/prepayments) ──
+let prepayData = {}; // "YYYY-MM-DD" -> {prom, fop}
+function prepayLoad(){
+  const saved = LS.get("bsrep:prepay");
+  if(saved) prepayData = saved;
+}
+function prepaySaveAll(){
+  LS.set("bsrep:prepay", prepayData);
+  if(window._prepayFbSave) window._prepayFbSave(prepayData);
+}
+function prepaySave(){
+  const dateEl = document.getElementById("prepay-date");
+  const dateKey = dateEl.value || new Date().toISOString().slice(0,10);
+  const prom = parseInt(document.getElementById("prepay-prom").value)||0;
+  const fop = parseInt(document.getElementById("prepay-fop").value)||0;
+  prepayData[dateKey] = {prom, fop};
+  prepaySaveAll();
+  document.getElementById("prepay-prom").value = "";
+  document.getElementById("prepay-fop").value = "";
+  prepayRenderList();
+  if(repActiveTab==="stats") renderUpsellStats();
+}
+function prepayDelete(dateKey){
+  delete prepayData[dateKey];
+  prepaySaveAll();
+  prepayRenderList();
+  if(repActiveTab==="stats") renderUpsellStats();
+}
+function prepayRenderList(){
+  const el = document.getElementById("prepay-list");
+  if(!el) return;
+  const entries = Object.entries(prepayData).sort((a,b)=>b[0].localeCompare(a[0])).slice(0,10);
+  el.innerHTML = entries.map(([dateKey,v])=>{
+    const [y,m,d] = dateKey.split("-");
+    return `<div class="prepay-list-row">
+      <span style="font-weight:600;color:var(--text)">${d}.${m}.${y}</span>
+      <span>Prom: <b>${v.prom}</b></span>
+      <span>ФОП: <b>${v.fop}</b></span>
+      <span style="margin-left:auto">Всього: <b>${v.prom+v.fop}</b></span>
+      <button onclick="prepayDelete('${dateKey}')" style="background:0;border:0;color:#C2453B;cursor:pointer;opacity:.5" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.5">✕</button>
+    </div>`;
+  }).join("") || '<p class="hint" style="margin:6px 0 0">Записів ще немає.</p>';
+}
+function prepayTotalsForPeriod(){
+  const [start,end] = repGetDateRange();
+  let prom=0, fop=0, days=0;
+  Object.entries(prepayData).forEach(([dateKey,v])=>{
+    const d = new Date(dateKey+"T00:00:00");
+    if(start && d<start) return;
+    if(end){ const e=new Date(end); e.setHours(23,59,59,999); if(d>e) return; }
+    prom+=v.prom; fop+=v.fop; days++;
+  });
+  return {prom, fop, total:prom+fop, days};
+}
+function renderPrepayStats(){
+  const el = document.getElementById("prepay-kpis");
+  if(!el) return;
+  const t = prepayTotalsForPeriod();
+  el.innerHTML = `
+    <div class="kpi"><div class="kpi-lbl">Всього передоплат</div><div class="kpi-val">${fmt(t.total)}</div><div class="kpi-sub">${t.days} днів із записами</div></div>
+    <div class="kpi"><div class="kpi-lbl">Prom оплата</div><div class="kpi-val" style="color:#7C3AED">${fmt(t.prom)}</div><div class="kpi-sub">${t.total?Math.round(t.prom/t.total*100):0}% від усіх</div></div>
+    <div class="kpi"><div class="kpi-lbl">Оплата на ФОП</div><div class="kpi-val" style="color:#1F6FEB">${fmt(t.fop)}</div><div class="kpi-sub">${t.total?Math.round(t.fop/t.total*100):0}% від усіх</div></div>
+  `;
+}
+
 function renderUpsellStats(){
+  renderPrepayStats();
   const kpisEl = document.getElementById("upsell-kpis");
   const lbEl = document.getElementById("upsell-leaderboard");
   if(!kpisEl) return;
@@ -1422,6 +1517,7 @@ function renderUpsellStats(){
 }
 
 repLoadParams();
+prepayLoad();
 
 repLoadSourcesConfig();
 </script>
@@ -2074,6 +2170,22 @@ finLoadSourcesConfig();
     } else { repParamsFbLoaded = true; }
   });
   window._repFbSaveParams = (data) => set(repParamsDbRef, data).catch(e => console.warn("Reports params FB error:", e));
+
+  // ── передоплати ──
+  const prepayDbRef = ref(db, "shop-reports/prepayments");
+  let prepayFbLoaded = false;
+  onValue(prepayDbRef, (snap) => {
+    const val = snap.val();
+    if (val && !prepayFbLoaded) {
+      prepayFbLoaded = true;
+      prepayData = val;
+      prepayRenderList();
+      if(document.getElementById("app-reports") && document.getElementById("app-reports").style.display !== "none" && repActiveTab==="stats"){
+        renderUpsellStats();
+      }
+    } else { prepayFbLoaded = true; }
+  });
+  window._prepayFbSave = (data) => set(prepayDbRef, data).catch(e => console.warn("Prepay FB error:", e));
 
   // ── архів закритих місяців: зберігаємо назавжди, щоб не залежати від Google Таблиці ──
   window._repArchiveGet = async (id) => {
