@@ -337,6 +337,12 @@ input[type=number]{-moz-appearance:textfield;}
       <p class="hint" style="margin-top:10px">Sheet ID і GID бери з посилання таблиці: .../d/<b>SHEET_ID</b>/edit?gid=<b>GID</b>. Коли почнеться новий місяць — додай нове джерело з новим GID, стара назва магазину збереже історію.</p>
     </div>
 
+    <!-- TABS -->
+    <div class="tabs">
+      <button class="tab" id="rep-tab-btn-shops" onclick="repSwitchTab('shops')">📦 Магазини</button>
+      <button class="tab" id="rep-tab-btn-stats" onclick="repSwitchTab('stats')">📊 Статистика</button>
+    </div>
+
     <!-- PERIOD -->
     <div class="wbar">
       <div id="rep-period-pills"></div>
@@ -356,15 +362,26 @@ input[type=number]{-moz-appearance:textfield;}
       <div class="sf" id="rep-src-pills"></div>
     </div>
 
-    <div class="kpis" id="rep-kpis"></div>
-    <button class="btn" id="rep-total-toggle-btn" style="margin-bottom:14px" onclick="repToggleTotalExpand()"></button>
-    <div id="rep-total-days"></div>
+    <!-- PANE: МАГАЗИНИ -->
+    <div id="rep-pane-shops">
+      <div id="rep-sources"></div>
 
-    <div id="rep-sources"></div>
+      <div class="sb" style="padding:20px;margin-top:4px" id="rep-chart-card">
+        <div style="font-size:13px;font-weight:700;margin-bottom:16px">📈 Чистий прибуток по днях</div>
+        <div id="rep-chart"></div>
+      </div>
+    </div>
 
-    <div class="sb" style="padding:20px;margin-top:4px" id="rep-chart-card">
-      <div style="font-size:13px;font-weight:700;margin-bottom:16px">📈 Чистий прибуток по днях</div>
-      <div id="rep-chart"></div>
+    <!-- PANE: СТАТИСТИКА -->
+    <div id="rep-pane-stats" style="display:none">
+      <div class="kpis" id="rep-kpis"></div>
+      <button class="btn" id="rep-total-toggle-btn" style="margin-bottom:14px" onclick="repToggleTotalExpand()"></button>
+      <div id="rep-total-days"></div>
+
+      <div style="font-size:13px;font-weight:700;margin:24px 0 12px">🎯 Допродажі</div>
+      <div class="kpis" id="upsell-kpis"></div>
+      <div id="upsell-leaderboard" style="margin-top:14px"></div>
+      <p class="hint">Допродажі тягнуться окремо з застосунку "Допродажі" (Firebase), за той самий період, що обраний вище.</p>
     </div>
 
     <p class="hint">Дані тягнуться напряму з Google Таблиць (CSV). Натисни «Оновити дані» щоб підвантажити свіжі цифри.</p>
@@ -770,6 +787,7 @@ function openReports(){
   if(!repSources.length) repLoadSourcesConfig();
   repRenderPeriodPills();
   repRenderSettingsTable();
+  repSwitchTab(repActiveTab);
   if(repRows.length){ repRenderAll(); }
   else { repReload(); }
 }
@@ -1174,9 +1192,20 @@ function repToggleTotalExpand(){
   repRenderAll();
 }
 
+let repActiveTab = "shops";
+function repSwitchTab(tab){
+  repActiveTab = tab;
+  document.getElementById("rep-tab-btn-shops").classList.toggle("on", tab==="shops");
+  document.getElementById("rep-tab-btn-stats").classList.toggle("on", tab==="stats");
+  document.getElementById("rep-pane-shops").style.display = tab==="shops" ? "block" : "none";
+  document.getElementById("rep-pane-stats").style.display = tab==="stats" ? "block" : "none";
+  if(tab==="stats") renderUpsellStats();
+}
+
 function repRenderAll(){
   repRenderGroupPills();
   repRenderSrcPills();
+  if(repActiveTab==="stats") renderUpsellStats();
   const rows = repFilteredRows();
 
   // групуємо по магазину
@@ -1299,6 +1328,76 @@ function repRenderAll(){
       </div>
     `;
   }
+}
+
+// ── Допродажі (окремий Firebase-проєкт "apsell-48b8e") ──
+let upsellOrders = [];
+function upsellParseDate(s){
+  if(!s) return null;
+  const p = s.split(".");
+  if(p.length!==3) return null;
+  const d = new Date(parseInt(p[2]), parseInt(p[1])-1, parseInt(p[0]));
+  return isNaN(d.getTime()) ? null : d;
+}
+function upsellFilteredOrders(){
+  const [start,end] = repGetDateRange();
+  return upsellOrders.filter(o=>{
+    const d = upsellParseDate(o.date);
+    if(!d) return false;
+    if(start && d<start) return false;
+    if(end){ const e=new Date(end); e.setHours(23,59,59,999); if(d>e) return false; }
+    return true;
+  });
+}
+function renderUpsellStats(){
+  const kpisEl = document.getElementById("upsell-kpis");
+  const lbEl = document.getElementById("upsell-leaderboard");
+  if(!kpisEl) return;
+  const filtered = upsellFilteredOrders();
+  let received={count:0,amount:0}, refused={count:0,amount:0}, inWork={count:0,amount:0};
+  let byType={"Повітря":0,"Товар":0};
+  const byManager = {};
+  filtered.forEach(o=>{
+    const amt = parseFloat(o.amount)||0;
+    if(o.status==="received"){ received.count++; received.amount+=amt; }
+    else if(o.status==="refused"){ refused.count++; refused.amount+=amt; }
+    else { inWork.count++; inWork.amount+=amt; }
+    if(byType[o.type]!==undefined) byType[o.type]+=amt;
+    if(!byManager[o.manager]) byManager[o.manager]={count:0,amount:0,received:0};
+    byManager[o.manager].count++;
+    byManager[o.manager].amount+=amt;
+    if(o.status==="received") byManager[o.manager].received+=amt;
+  });
+  const totalCount = filtered.length;
+  const totalAmount = received.amount+refused.amount+inWork.amount;
+  const convRate = (received.count+refused.count) ? received.count/(received.count+refused.count) : 0;
+
+  kpisEl.innerHTML = `
+    <div class="kpi"><div class="kpi-lbl">Всього допродажів</div><div class="kpi-val">${fmt(totalCount)}</div><div class="kpi-sub">${fmt(totalAmount)} ₴ на суму</div></div>
+    <div class="kpi"><div class="kpi-lbl">Отримано (успішно)</div><div class="kpi-val" style="color:#0E7C5A">${fmt(received.amount)} ₴</div><div class="kpi-sub">${fmt(received.count)} шт.</div></div>
+    <div class="kpi"><div class="kpi-lbl">В роботі</div><div class="kpi-val" style="color:#CA8A04">${fmt(inWork.amount)} ₴</div><div class="kpi-sub">${fmt(inWork.count)} шт. (нове/в дорозі)</div></div>
+    <div class="kpi"><div class="kpi-lbl">Відмови</div><div class="kpi-val" style="color:#C2453B">${fmt(refused.amount)} ₴</div><div class="kpi-sub">${fmt(refused.count)} шт.</div></div>
+    <div class="kpi"><div class="kpi-lbl">% успішних</div><div class="kpi-val">${fP(convRate)}</div><div class="kpi-sub">отримано / (отримано+відмова)</div></div>
+    <div class="kpi"><div class="kpi-lbl">Тип: Повітря / Товар</div><div class="kpi-val" style="font-size:15px">${fmt(byType["Повітря"])} / ${fmt(byType["Товар"])} ₴</div></div>
+  `;
+
+  const mgrList = Object.entries(byManager).map(([name,s])=>({name,...s})).sort((a,b)=>b.amount-a.amount);
+  lbEl.innerHTML = mgrList.length ? `
+    <div class="sb">
+      <div class="sb-t">🏆 Рейтинг менеджерів</div>
+      <div class="scroll"><table>
+        <thead><tr><th style="text-align:left">Менеджер</th><th>Допродажів</th><th>На суму</th><th>Отримано (успішно)</th></tr></thead>
+        <tbody>
+          ${mgrList.map(m=>`<tr>
+            <td style="text-align:left;font-weight:600;padding:8px">${m.name}</td>
+            <td class="r" style="padding:8px">${fmt(m.count)}</td>
+            <td class="r" style="padding:8px">${fmt(m.amount)} ₴</td>
+            <td class="r" style="padding:8px;color:#0E7C5A;font-weight:600">${fmt(m.received)} ₴</td>
+          </tr>`).join("")}
+        </tbody>
+      </table></div>
+    </div>
+  ` : '<p class="hint">Немає допродажів за обраний період.</p>';
 }
 
 repLoadParams();
@@ -1878,6 +1977,7 @@ finLoadSourcesConfig();
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
   import { getDatabase, ref, set, get, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+  import { getFirestore, collection, onSnapshot as onFsSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
   const firebaseConfig = {
     apiKey: "AIzaSyAKBZifq8tmsJ75DL1Y6QiAY942TFcZuKk",
     authDomain: "owner-portal-1649e.firebaseapp.com",
@@ -1889,6 +1989,25 @@ finLoadSourcesConfig();
   };
   const app = initializeApp(firebaseConfig);
   const db = getDatabase(app);
+
+  // ── окремий Firebase-проєкт допродажів (Firestore, тільки читання) ──
+  const upsellFirebaseConfig = {
+    apiKey: "AIzaSyC-D2oLeBlbN3nTQ_Mi8gOQ2SA7aPSmIAE",
+    authDomain: "apsell-48b8e.firebaseapp.com",
+    projectId: "apsell-48b8e",
+    storageBucket: "apsell-48b8e.firebasestorage.app",
+    messagingSenderId: "1051142332623",
+    appId: "1:1051142332623:web:af40b1725ed6da8afed7ba"
+  };
+  const upsellApp = initializeApp(upsellFirebaseConfig, "upsellApp");
+  const upsellDb = getFirestore(upsellApp);
+  onFsSnapshot(collection(upsellDb, "orders"), (snap) => {
+    upsellOrders = snap.docs.map(d => d.data());
+    if(document.getElementById("app-reports") && document.getElementById("app-reports").style.display !== "none" && repActiveTab==="stats"){
+      renderUpsellStats();
+    }
+  }, (err) => console.warn("Upsell Firestore error:", err));
+
   const dbRef = ref(db, "ads-tracker/weeks");
   let loaded = false;
   onValue(dbRef, (snap) => {
