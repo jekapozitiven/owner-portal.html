@@ -967,20 +967,19 @@ async function repReload(){
   repLoading = true;
   const st = document.getElementById("rep-status");
   if(st) st.textContent = "Завантаження...";
-  let allRows = [];
   let errors = [];
   const today = new Date();
   const curYear = today.getFullYear(), curMonth = today.getMonth()+1;
-  for(const cfg of repSources){
-    if(!cfg.sheetId || !cfg.gid) continue;
+
+  const results = await Promise.all(repSources.map(async (cfg) => {
+    if(!cfg.sheetId || !cfg.gid) return [];
     const isCurrentMonth = (cfg.year===curYear && cfg.month===curMonth);
 
     // минулі місяці спершу шукаємо в архіві Firebase — швидко і не залежить від Google Таблиці
     if(!isCurrentMonth && window._repArchiveGet){
       const archived = await window._repArchiveGet(cfg.id);
       if(archived && archived.length){
-        allRows = allRows.concat(repRowsFromArchive(archived));
-        continue;
+        return repRowsFromArchive(archived);
       }
     }
 
@@ -991,16 +990,18 @@ async function repReload(){
       if(!res.ok) throw new Error("HTTP "+res.status);
       const text = await res.text();
       const rows = repParseCsv(text, cfg);
-      allRows = allRows.concat(rows);
       if(!isCurrentMonth && rows.length && window._repArchiveSave){
         window._repArchiveSave(cfg.id, repRowsToArchive(rows));
       }
+      return rows;
     }catch(e){
       console.warn("Reports load error for", cfg.name, e);
       errors.push(cfg.name);
+      return [];
     }
-  }
-  repRows = allRows;
+  }));
+
+  repRows = results.flat();
   // ініціалізуємо вибір джерел якщо порожній
   if(repSelKeys.size===0){
     repSources.forEach(s=>repSelKeys.add(s.name+"|"+s.ch));
@@ -1008,6 +1009,10 @@ async function repReload(){
   repLoading = false;
   if(st) st.textContent = errors.length ? ("⚠ Не вдалось: "+errors.join(", ")) : ("Оновлено "+new Date().toLocaleTimeString("uk-UA"));
   repRenderAll();
+  // якщо саме зараз відкриті Фінанси (їм потрібні дані звітів для прибутку від реклами) — перерахувати і їх
+  if(document.getElementById("app-finance") && document.getElementById("app-finance").style.display !== "none"){
+    finRenderAll();
+  }
 }
 
 function repRenderPeriodPills(){
@@ -1615,10 +1620,10 @@ function openFinance(){
     else { finCurYear=today.getFullYear(); finCurMonth=today.getMonth()+1; }
   }
   finRenderSettingsTable();
-  // переконуємось що дані звітів по магазинах підвантажені (для розрахунку прибутку від реклами)
+  // звіти (для прибутку від реклами) і власні витрати тягнемо ОДНОЧАСНО, не одне за одним
   if(!repSources.length) repLoadSourcesConfig();
-  if(!repRows.length && !repLoading){ repReload().then(()=>finReload()); }
-  else { finReload(); }
+  if(!repRows.length && !repLoading){ repReload(); }
+  finReload();
 }
 
 function finToggleSettings(){
@@ -1765,8 +1770,9 @@ async function finReload(){
   const st = document.getElementById("fin-status");
   if(st) st.textContent = "Завантаження...";
   let errors = [];
-  for(const cfg of finSources){
-    if(!cfg.sheetId || !cfg.gid) continue;
+
+  await Promise.all(finSources.map(async (cfg) => {
+    if(!cfg.sheetId || !cfg.gid) return;
     const mk = cfg.year+"-"+cfg.month;
 
     // спершу архів (твої ручні правки) — він основа
@@ -1812,7 +1818,8 @@ async function finReload(){
       console.warn("Finance load error for", mk, e);
       errors.push(mk);
     }
-  }
+  }));
+
   finLoading = false;
   if(st) st.textContent = errors.length ? ("⚠ Не вдалось: "+errors.join(", ")) : ("Оновлено "+new Date().toLocaleTimeString("uk-UA"));
   finRenderAll();
@@ -2179,6 +2186,9 @@ finLoadSourcesConfig();
       repParams = {buyouts:val.buyouts||{}, kc:val.kc||{}, returnCost:(val.returnCost&&typeof val.returnCost==='object')?val.returnCost:{}};
       if(document.getElementById("app-reports") && document.getElementById("app-reports").style.display !== "none"){
         repRenderAll();
+      }
+      if(document.getElementById("app-finance") && document.getElementById("app-finance").style.display !== "none"){
+        finRenderAll();
       }
     } else { repParamsFbLoaded = true; }
   });
