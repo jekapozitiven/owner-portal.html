@@ -526,7 +526,7 @@ const fP=n=>isNaN(n)||!isFinite(n)?"—":(n*100).toFixed(1).replace(".",",")+"%"
 const nc=v=>v<=5000?"#C2453B":v<=7000?"#F97316":v<=12000?"#CA8A04":"#0E7C5A";
 const rc=v=>v>=2.5?"#0E7C5A":v>=1.7?"#CA8A04":v>=1.3?"#F97316":"#C2453B";
 const roic=v=>v>=1.0?"#7C3AED":v>=0.75?"#0E7C5A":v>=0.60?"#CA8A04":v>=0.50?"#F97316":"#C2453B";
-const aw=(c,p,x)=>{if(p===null||p===undefined)return"";const d=c-p,u=d>=0,col=u?"#0E7C5A":"#C2453B";return`<span class="aw" style="color:${col}">${u?"▲":"▼"} ${x?fX(Math.abs(d)):fmt(Math.abs(d))}</span>`;}
+const aw=(c,p,x)=>{if(p===null||p===undefined)return"";const d=c-p,u=d>=0,col=u?"#0E7C5A":"#C2453B";const fv=x==='p'?fP(Math.abs(d)):x?fX(Math.abs(d)):fmt(Math.abs(d));return`<span class="aw" style="color:${col}">${u?"▲":"▼"} ${fv}</span>`;}
 
 function calc(w){
   const kc=(w.kcPct||7)/100,rf=w.refCost||100;
@@ -638,7 +638,7 @@ function renderWeek(){
   document.getElementById("kpis").innerHTML=`
     <div class="kpi"><div class="kpi-lbl">Чистий прибуток</div><div class="kpi-val" style="color:${nc(c.T.net)}">${fmt(c.T.net)} ₴${aw(c.T.net,pw?pw.T.net:null)}</div><div class="kpi-sub">до ставок і постійних витрат</div></div>
     <div class="kpi"><div class="kpi-lbl">ROAS</div><div class="kpi-val" style="color:${rc(c.roas)}">${fX(c.roas)}${aw(c.roas,pw?pw.roas:null,true)}</div><div class="kpi-sub">маржа×викуп / бюджет</div></div>
-    <div class="kpi"><div class="kpi-lbl">ROI</div><div class="kpi-val" style="color:${roic(c.roi)}">${fP(c.roi)}</div><div class="kpi-sub">чистий / витрати</div></div>
+    <div class="kpi"><div class="kpi-lbl">ROI</div><div class="kpi-val" style="color:${roic(c.roi)}">${fP(c.roi)}${aw(c.roi,pw?pw.roi:null,'p')}</div><div class="kpi-sub">чистий / витрати</div></div>
     <div class="kpi"><div class="kpi-lbl">Маржа (реальна)</div><div class="kpi-val">${fmt(c.T.marg_real)} ₴</div><div class="kpi-sub">потенційна (100% викуп): ${fmt(c.T.marg)} ₴</div></div>`;
 
   const sw=document.getElementById("srcs");sw.innerHTML="";
@@ -681,7 +681,9 @@ function renderWeek(){
         <th><span class="tip-label" data-tip="roi">ROI</span></th>
         <th></th>
       </tr></thead>
-      <tbody>${s.camps.map(c=>`<tr class="tr">
+      <tbody>${s.camps.map(c=>{
+        const pc = ps ? ps.camps.find(x=>x.name===c.name) : null;
+        return `<tr class="tr">
         <td><input class="ninp" value="${c.name}" onchange="sc(${s.id},${c.id},'name',this.value)"></td>
         <td><input class="inp" style="width:66px" type="number" value="${c.leads||''}" placeholder="0" onfocus="this.select()" onchange="sc(${s.id},${c.id},'leads',this.value)"></td>
         <td><input class="inp" style="width:76px" type="number" value="${c.orders||''}" placeholder="0" onfocus="this.select()" onchange="sc(${s.id},${c.id},'orders',this.value)"></td>
@@ -691,11 +693,11 @@ function renderWeek(){
         <td class="r" style="color:var(--text-muted)">${fmt(c.kc_c)}</td>
         <td class="r" style="color:var(--text-muted)">${fmt(c.ref_c)}</td>
         <td class="r" style="color:var(--text-muted)">${fmt(c.cost_c)}</td>
-        <td class="r" style="font-weight:700;color:${nc(c.net)}">${fmt(c.net)}</td>
-        <td class="r" style="color:${rc(c.roas)}">${fX(c.roas)}</td>
-        <td class="r" style="color:${roic(c.roi)}">${fP(c.roi)}</td>
+        <td class="r" style="font-weight:700;color:${nc(c.net)}">${fmt(c.net)}${aw(c.net,pc?pc.net:null)}</td>
+        <td class="r" style="color:${rc(c.roas)}">${fX(c.roas)}${aw(c.roas,pc?pc.roas:null,true)}</td>
+        <td class="r" style="color:${roic(c.roi)}">${fP(c.roi)}${aw(c.roi,pc?pc.roi:null,'p')}</td>
         <td><button class="del" onclick="dc(${s.id},${c.id})">✕</button></td>
-      </tr>`).join('')}</tbody>
+      </tr>`;}).join('')}</tbody>
       <tfoot><tr>
         <td style="text-align:left;font-family:inherit">Разом</td>
         <td class="r">${fmt(s.S.leads)}</td><td class="r">${fmt(s.S.orders)}</td>
@@ -705,8 +707,8 @@ function renderWeek(){
         <td class="r">${fmt(s.S.v)}</td><td class="r">${fmt(s.S.kc)}</td>
         <td class="r">${fmt(s.S.ref)}</td><td class="r">${fmt(s.S.cost)}</td>
         <td class="r" style="color:${nc(s.S.net)}">${fmt(s.S.net)}</td>
-        <td class="r" style="color:${rc(s.roas)}">${fX(s.roas)}</td>
-        <td class="r" style="color:${roic(s.roi)}">${fP(s.roi)}</td>
+        <td class="r" style="color:${rc(s.roas)}">${fX(s.roas)}${aw(s.roas,ps?ps.roas:null,true)}</td>
+        <td class="r" style="color:${roic(s.roi)}">${fP(s.roi)}${aw(s.roi,ps?ps.roi:null,'p')}</td>
         <td></td>
       </tr></tfoot>
     </table></div>
