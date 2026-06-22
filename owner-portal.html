@@ -326,6 +326,7 @@ input[type=number]{-moz-appearance:textfield;}
       <span id="rep-status" style="font-size:11px;color:#999"></span>
       <button class="btn" onclick="repReload()">🔄 Оновити дані</button>
       <button class="btn" onclick="repToggleSettings()">⚙ Джерела</button>
+      <button class="btn" onclick="repForceSyncParams()" title="Якщо налаштування магазинів (викуп/КЦ/повернення) не співпадають на різних пристроях">📤 Синхронізувати налаштування</button>
     </div>
   </div>
   <div class="main">
@@ -882,6 +883,14 @@ function repLoadParams(){
 function repSaveParams(){
   LS.set(REP_PARAMS_KEY, repParams);
   if(window._repFbSaveParams) window._repFbSaveParams(repParams);
+}
+function repForceSyncParams(){
+  if(window._repFbSaveParams){
+    window._repFbSaveParams(repParams);
+    alert("Готово! Налаштування магазинів (викуп/КЦ/повернення) відправлені в хмару. На інших пристроях вони з'являться після перезавантаження сторінки.");
+  } else {
+    alert("Firebase ще не підключився, спробуй за кілька секунд ще раз.");
+  }
 }
 function repGetBuyout(key){
   return repParams.buyouts[key]!==undefined ? repParams.buyouts[key] : 65;
