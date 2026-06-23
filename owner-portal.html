@@ -444,6 +444,14 @@ input[type=number]{-moz-appearance:textfield;}
       <p class="hint" style="margin-top:4px">Категорію визначаю по кольору рядка (фарбуй колонку A): оранжевий → Зарплати, фіолетовий → Реклама та податки, червоний → Логістика та повернення, синій → Сервіси та підписки, сірий → Інше. Якщо колір не розпізнано — можеш як запасний варіант написати назву категорії в колонці D.</p>
     </div>
 
+    <!-- TABS -->
+    <div class="tabs">
+      <button class="tab" id="fin-tab-btn-overview" onclick="finSwitchTab('overview')">📊 Огляд</button>
+      <button class="tab" id="fin-tab-btn-compare" onclick="finSwitchTab('compare')">⇄ Порівняння</button>
+    </div>
+
+    <!-- PANE: ОГЛЯД -->
+    <div id="fin-pane-overview">
     <div class="fin-month-bar">
       <button class="fin-month-arrow" onclick="finShiftMonth(-1)">←</button>
       <div class="fin-month-label" id="fin-month-label">—</div>
@@ -468,8 +476,20 @@ input[type=number]{-moz-appearance:textfield;}
     </div>
 
     <p class="hint">Дохід рахується з даних "Звіти по магазинах" за обраний місяць. Витрати тягнуться напряму з Google Таблиці "Фінанси" (CSV).</p>
+    </div>
+
+    <!-- PANE: ПОРІВНЯННЯ -->
+    <div id="fin-pane-compare" style="display:none">
+      <div class="sb" style="padding:18px 20px">
+        <div style="font-size:13px;font-weight:700;margin-bottom:4px" id="fin-compare-title">Порівняння місяців</div>
+        <p class="hint" style="margin:0 0 14px;text-align:left">Поточний обраний місяць (зі вкладки «Огляд») проти попереднього за списком джерел.</p>
+        <div class="scroll"><table id="fin-compare-table"></table></div>
+      </div>
+    </div>
+
   </div>
 </div>
+
 
 <div id="gtip"></div>
 
@@ -1723,6 +1743,7 @@ function openFinance(){
     else { finCurYear=today.getFullYear(); finCurMonth=today.getMonth()+1; }
   }
   finRenderSettingsTable();
+  finSwitchTab(finActiveTab);
   // звіти (для прибутку від реклами) і власні витрати тягнемо ОДНОЧАСНО, не одне за одним
   if(!repSources.length) repLoadSourcesConfig();
   if(!repRows.length && !repLoading){ repReload(); }
@@ -2036,7 +2057,72 @@ function finToggleCat(key){
 
 const FIN_MONTHS_UA = ["Січень","Лютий","Березень","Квітень","Травень","Червень","Липень","Серпень","Вересень","Жовтень","Листопад","Грудень"];
 
+let finActiveTab = LS.get("bsfin:activeTab") || "overview";
+function finSwitchTab(tab){
+  finActiveTab = tab;
+  LS.set("bsfin:activeTab", tab);
+  document.getElementById("fin-tab-btn-overview").classList.toggle("on", tab==="overview");
+  document.getElementById("fin-tab-btn-compare").classList.toggle("on", tab==="compare");
+  document.getElementById("fin-pane-overview").style.display = tab==="overview" ? "block" : "none";
+  document.getElementById("fin-pane-compare").style.display = tab==="compare" ? "block" : "none";
+  if(tab==="compare") finRenderComparison();
+}
+function finMetricsForMonth(year, month){
+  const mk = year+"-"+month;
+  const ad = finGetMonthlyAdProfit(year, month);
+  const expTotal = finTotal(finDataByMonth[mk] || {items:[]});
+  const finalNet = ad.adProfit - expTotal;
+  const roas = ad.budget ? ad.realMargin/ad.budget : 0;
+  const adCosts = ad.realMargin - ad.adProfit;
+  const roiAds = adCosts ? ad.adProfit/adCosts : 0;
+  const totalCosts = adCosts + expTotal;
+  const roi = totalCosts ? finalNet/totalCosts : 0;
+  const rentability = ad.realMargin ? finalNet/ad.realMargin : 0;
+  return {realMargin:ad.realMargin, adProfit:ad.adProfit, expTotal, finalNet, roas, roiAds, roi, rentability};
+}
+function finRenderComparison(){
+  const tEl = document.getElementById("fin-compare-table");
+  const titleEl = document.getElementById("fin-compare-title");
+  if(!tEl) return;
+  const sorted = [...finSources].sort((a,b)=>(a.year*12+a.month)-(b.year*12+b.month));
+  const idx = sorted.findIndex(s=>s.year===finCurYear && s.month===finCurMonth);
+  const prev = idx>0 ? sorted[idx-1] : null;
+  const curLbl = (FIN_MONTHS_UA[finCurMonth-1]||"?")+" "+finCurYear;
+  if(!prev){
+    titleEl.textContent = "Порівняння місяців";
+    tEl.innerHTML = '<tr><td class="hint" style="padding:14px 0">Немає попереднього місяця для порівняння — додай ще один місяць у "⚙ Джерело витрат".</td></tr>';
+    return;
+  }
+  const prevLbl = (FIN_MONTHS_UA[prev.month-1]||"?")+" "+prev.year;
+  titleEl.textContent = curLbl+" проти "+prevLbl;
+  const cur = finMetricsForMonth(finCurYear, finCurMonth);
+  const old = finMetricsForMonth(prev.year, prev.month);
+  const rows = [
+    {lbl:"Маржа (реальна)", c:cur.realMargin, p:old.realMargin, mode:null},
+    {lbl:"Прибуток від реклами", c:cur.adProfit, p:old.adProfit, mode:null},
+    {lbl:"Операційні витрати", c:cur.expTotal, p:old.expTotal, mode:null},
+    {lbl:"Чистий прибуток компанії", c:cur.finalNet, p:old.finalNet, mode:null},
+    {lbl:"ROAS", c:cur.roas, p:old.roas, mode:true},
+    {lbl:"ROI реклами", c:cur.roiAds, p:old.roiAds, mode:'p'},
+    {lbl:"ROI компанії", c:cur.roi, p:old.roi, mode:'p'},
+    {lbl:"Рентабельність", c:cur.rentability, p:old.rentability, mode:'p'},
+  ];
+  const fv = (v,mode) => mode==='p' ? fP(v) : mode ? fX(v) : fmt(v)+" ₴";
+  tEl.innerHTML = `
+    <thead><tr><th style="text-align:left">Показник</th><th>${curLbl}</th><th>${prevLbl}</th><th>Зміна</th></tr></thead>
+    <tbody>
+      ${rows.map(r=>`<tr>
+        <td style="text-align:left;font-weight:600;padding:8px">${r.lbl}</td>
+        <td class="r" style="padding:8px">${fv(r.c,r.mode)}</td>
+        <td class="r" style="padding:8px;color:var(--text-muted)">${fv(r.p,r.mode)}</td>
+        <td class="r" style="padding:8px">${aw(r.c,r.p,r.mode)||'<span style="color:var(--text-faint)">—</span>'}</td>
+      </tr>`).join("")}
+    </tbody>
+  `;
+}
+
 function finRenderAll(){
+  if(finActiveTab==="compare") finRenderComparison();
   const mk = finCurYear+"-"+finCurMonth;
   document.getElementById("fin-month-label").textContent = (FIN_MONTHS_UA[finCurMonth-1]||"?")+" "+finCurYear;
 
