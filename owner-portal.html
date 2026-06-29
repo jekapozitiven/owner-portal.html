@@ -628,6 +628,16 @@ function sc(sid,cid,k,v){const w=cw();if(!w)return;const s=w.sources.find(x=>x.i
 function ac(sid){const w=cw();if(!w)return;const s=w.sources.find(x=>x.id===sid);if(!s)return;s.camps.push(ec());save();renderWeek();}
 function dc(sid,cid){const w=cw();if(!w)return;const s=w.sources.find(x=>x.id===sid);if(!s)return;s.camps=s.camps.filter(c=>c.id!==cid);save();renderWeek();}
 function addSrc(){const w=cw();if(!w)return;w.sources.push(es());save();renderWeek();}
+function addBlackStreetToAllWeeks(){
+  weeks.forEach(w=>{
+    const exists = w.sources.some(s=>s.name==="Black-street" && s.ch==="Google");
+    if(!exists){
+      w.sources.push({id:nid(), name:"Black-street", ch:"Google", buyout:67, camps:[ec()]});
+    }
+  });
+  save();
+  renderWeek();
+}
 async function importFromReports(){
   const w = cw(); if(!w) return;
   if(!repSources || !repSources.length) repLoadSourcesConfig();
@@ -2398,6 +2408,7 @@ finSyncCustomCatsFromCloud();
       loaded = true;
       weeks = val;
       cur = weeks[weeks.length-1].id;
+      addBlackStreetToAllWeeks();
       if(document.getElementById("app").style.display !== "none") render();
     }
   }, (err) => { console.warn("Ads tracker FB read error:", err); });
