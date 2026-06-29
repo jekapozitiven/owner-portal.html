@@ -638,7 +638,15 @@ const TIPS={
   'costs':'<b>Витрати</b><br><i style="color:var(--text-muted)">Бюджет + КЦ + Повернення</i><br><br>Всі витрати по кампанії. Від маржі потрібно відняти цю суму щоб дізнатись реальний прибуток.',
   'net':'<b>Чистий прибуток</b><br><i style="color:var(--text-muted)">Маржа×Викуп% − Витрати</i><br><br>Те що залишається після реклами, КЦ і повернень. Без ставок і постійних витрат бізнесу.',
   'roas':'<b>ROAS — Return On Ad Spend</b><br><i style="color:var(--text-muted)">Маржа×Викуп% ÷ Бюджет</i><br><br>Скільки гривень маржі приносить кожна гривня реклами. ROAS 2.0x = витратив 100₴ → отримав 200₴ маржі.<br><br>🟢 &gt;2.5x — відмінно<br>🟡 1.7–2.5x — середньо<br>🟠 1.3–1.7x — на межі<br>🔴 &lt;1.3x — збиток',
-  'roi':'<b>ROI — Return On Investment</b><br><i style="color:var(--text-muted)">Чистими ÷ Витрати × 100%</i><br><br>Скільки % прибутку від вкладених грошей. ROI 100% = на кожну витрачену гривню заробив ще одну чистими.<br><br>🟣 &gt;100% — супер<br>🟢 75–100% — добре<br>🟡 60–75% — середньо<br>🟠 50–60% — слабко<br>🔴 &lt;50% — погано'
+  'roi':'<b>ROI — Return On Investment</b><br><i style="color:var(--text-muted)">Чистими ÷ Витрати × 100%</i><br><br>Скільки % прибутку від вкладених грошей. ROI 100% = на кожну витрачену гривню заробив ще одну чистими.<br><br>🟣 &gt;100% — супер<br>🟢 75–100% — добре<br>🟡 60–75% — середньо<br>🟠 50–60% — слабко<br>🔴 &lt;50% — погано',
+  'rep_budget':'<b>Бюджет</b><br><i style="color:var(--text-muted)">Сума витрат на рекламу за обраний період</i><br><br>Скільки реально витрачено на рекламу (Google/Prom) по всіх обраних магазинах за вибраний період часу.',
+  'rep_leads':'<b>Заявки</b><br><i style="color:var(--text-muted)">Кількість лідів з реклами</i><br><br>Скільки людей залишило заявку (зробило замовлення) з реклами за період, ще до підтвердження колл-центром.',
+  'rep_approved':'<b>Апрув</b><br><i style="color:var(--text-muted)">Підтверджені колл-центром заявки</i><br><br>Скільки заявок колл-центр зміг підтвердити (додзвонився, клієнт погодився). Це ще не означає що клієнт реально забрав посилку — для цього є "Забрали".',
+  'rep_apprate':'<b>% Апрув</b><br><i style="color:var(--text-muted)">Апрув ÷ Заявки × 100%</i><br><br>Яка частка заявок підтверджується колл-центром. Низький % апруву — сигнал що варто перевірити роботу колл-центру або якість трафіку.',
+  'rep_margin':'<b>Маржа (реальна)</b><br><i style="color:var(--text-muted)">Потенційна маржа × % викупу магазину</i><br><br>Реальна маржа з урахуванням того, що частина клієнтів не забирає посилку (викуп). "100% викуп" поруч — скільки було б маржі, якби забирали всі.',
+  'rep_kcspent':'<b>Витрачено на КЦ</b><br><i style="color:var(--text-muted)">Сума оплати колл-центру (% від маржі) по всіх магазинах</i><br><br>Скільки грошей за період пішло на оплату колл-центру за обробку замовлень, з урахуванням % КЦ кожного магазину.',
+  'rep_pctbudget':'<b>% бюджету від маржі</b><br><i style="color:var(--text-muted)">Бюджет ÷ Маржа (реальна) × 100%</i><br><br>Яку частку реальної маржі "з'їдає" рекламний бюджет. Чим нижче — тим вигідніша реклама відносно того, що вона приносить.',
+  'rep_pctsalary':'<b>% ЗП від прибутку</b><br><i style="color:var(--text-muted)">Витрачено на КЦ ÷ Чистий прибуток × 100%</i><br><br>Яку частку чистого прибутку "забирає" оплата колл-центру.'
 };
 (function(){
   const tip=document.getElementById('gtip');
@@ -1347,14 +1355,21 @@ function repRenderAll(){
   const approvalRate = T.leads?T.approved/T.leads*100:0;
   const pctBudgetOfMargin = T.realMargin?T.budget/T.realMargin*100:0;
   const pctSalaryOfProfit = T.net?T.kc/T.net*100:0;
+  const cplT = T.leads?T.budget/T.leads:0;
+  const cpaT = T.approved?T.budget/T.approved:0;
+  const uniqueDays = new Set(rows.map(r=>r.date.toISOString().slice(0,10))).size;
 
   document.getElementById("rep-kpis").innerHTML = `
-    <div class="kpi"><div class="kpi-lbl">Бюджет</div><div class="kpi-val">${fmt(T.budget)} ₴</div><div class="kpi-sub">${rows.length} днів даних</div></div>
-    <div class="kpi"><div class="kpi-lbl">Заявки</div><div class="kpi-val">${fmt(T.leads)}</div><div class="kpi-sub">апрув: ${fmt(T.approved)} (${fP(approvalRate/100)})</div></div>
-    <div class="kpi"><div class="kpi-lbl">Маржа (реальна)</div><div class="kpi-val">${fmt(T.realMargin)} ₴</div><div class="kpi-sub">100% викуп: ${fmt(T.marginPotential)} ₴</div></div>
-    <div class="kpi"><div class="kpi-lbl">Чистий прибуток</div><div class="kpi-val" style="color:${nc(T.net)}">${fmt(T.net)} ₴</div><div class="kpi-sub">ROAS <b style="color:${rc(roas)}">${fX(roas)}</b> · ROI <b style="color:${roic(roi)}">${fP(roi)}</b></div></div>
-    <div class="kpi"><div class="kpi-lbl">% бюджету від маржі</div><div class="kpi-val">${fP(pctBudgetOfMargin/100)}</div></div>
-    <div class="kpi"><div class="kpi-lbl">% ЗП від прибутку</div><div class="kpi-val">${fP(pctSalaryOfProfit/100)}</div></div>
+    <div class="kpi"><div class="kpi-lbl"><span class="tip-label" data-tip="rep_budget">Бюджет</span></div><div class="kpi-val">${fmt(T.budget)} ₴</div><div class="kpi-sub">${uniqueDays} днів даних</div></div>
+    <div class="kpi"><div class="kpi-lbl"><span class="tip-label" data-tip="rep_leads">Заявки</span></div><div class="kpi-val">${fmt(T.leads)}</div><div class="kpi-sub">апрув: ${fmt(T.approved)} (${fP(approvalRate/100)})</div></div>
+    <div class="kpi"><div class="kpi-lbl"><span class="tip-label" data-tip="rep_approved">Апрув</span></div><div class="kpi-val">${fmt(T.approved)}</div><div class="kpi-sub"><span class="tip-label" data-tip="rep_apprate">% Апрув: ${fP(approvalRate/100)}</span></div></div>
+    <div class="kpi"><div class="kpi-lbl"><span class="tip-label" data-tip="cpl">Ціна заявки</span></div><div class="kpi-val">${fmt(cplT)} ₴</div></div>
+    <div class="kpi"><div class="kpi-lbl"><span class="tip-label" data-tip="cpa">Ціна апрув</span></div><div class="kpi-val">${fmt(cpaT)} ₴</div></div>
+    <div class="kpi"><div class="kpi-lbl"><span class="tip-label" data-tip="rep_margin">Маржа (реальна)</span></div><div class="kpi-val">${fmt(T.realMargin)} ₴</div><div class="kpi-sub">100% викуп: ${fmt(T.marginPotential)} ₴</div></div>
+    <div class="kpi"><div class="kpi-lbl"><span class="tip-label" data-tip="net">Чистий прибуток</span></div><div class="kpi-val" style="color:${nc(T.net)}">${fmt(T.net)} ₴</div><div class="kpi-sub"><span class="tip-label" data-tip="roas">ROAS</span> <b style="color:${rc(roas)}">${fX(roas)}</b> · <span class="tip-label" data-tip="roi">ROI</span> <b style="color:${roic(roi)}">${fP(roi)}</b></div></div>
+    <div class="kpi"><div class="kpi-lbl"><span class="tip-label" data-tip="rep_kcspent">Витрачено на КЦ</span></div><div class="kpi-val">${fmt(T.kc)} ₴</div></div>
+    <div class="kpi"><div class="kpi-lbl"><span class="tip-label" data-tip="rep_pctbudget">% бюджету від маржі</span></div><div class="kpi-val">${fP(pctBudgetOfMargin/100)}</div></div>
+    <div class="kpi"><div class="kpi-lbl"><span class="tip-label" data-tip="rep_pctsalary">% ЗП від прибутку</span></div><div class="kpi-val">${fP(pctSalaryOfProfit/100)}</div></div>
   `;
   document.getElementById("rep-total-toggle-btn").textContent = repTotalExpanded ? "▴ Згорнути" : "📅 Деталі по днях (усі джерела)";
   document.getElementById("rep-total-days").innerHTML = repTotalExpanded ? repRenderTotalDaysTable(rows) : "";
