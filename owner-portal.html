@@ -309,6 +309,7 @@ input[type=number]{-moz-appearance:textfield;}
       <div class="kpis" id="kpis"></div>
       <div id="srcs"></div>
       <button class="btn" style="margin-bottom:20px" onclick="addSrc()">+ Джерело</button>
+      <button class="btn" style="margin-bottom:20px" onclick="importFromReports()">📥 Підтягнути з звітів</button>
       <div class="grand" id="grand"></div>
       <p class="hint">Сині заголовки — вводиш ти. Маржа вводиться як потенційна (100% викуп), реальна = маржа × викуп%. Дані синхронізуються через Firebase.</p>
     </div>
@@ -627,6 +628,41 @@ function sc(sid,cid,k,v){const w=cw();if(!w)return;const s=w.sources.find(x=>x.i
 function ac(sid){const w=cw();if(!w)return;const s=w.sources.find(x=>x.id===sid);if(!s)return;s.camps.push(ec());save();renderWeek();}
 function dc(sid,cid){const w=cw();if(!w)return;const s=w.sources.find(x=>x.id===sid);if(!s)return;s.camps=s.camps.filter(c=>c.id!==cid);save();renderWeek();}
 function addSrc(){const w=cw();if(!w)return;w.sources.push(es());save();renderWeek();}
+async function importFromReports(){
+  const w = cw(); if(!w) return;
+  if(!repSources || !repSources.length) repLoadSourcesConfig();
+  if(!repRows.length && !repLoading){ await repReload(); }
+  const start = new Date(w.start+"T00:00:00");
+  const end = new Date(w.end+"T23:59:59");
+  const inRange = repRows.filter(r=>r.date>=start && r.date<=end);
+  const byShop = {};
+  inRange.forEach(r=>{
+    const key = r.name+"|"+r.ch;
+    if(!byShop[key]) byShop[key] = {name:r.name, ch:r.ch, budget:0, leads:0, approved:0, marginPotential:0};
+    byShop[key].budget += r.budget;
+    byShop[key].leads += r.leads;
+    byShop[key].approved += r.approved;
+    byShop[key].marginPotential += r.marginPotential;
+  });
+  const existingKeys = new Set(w.sources.map(s=>s.name+"|"+s.ch));
+  let added = [], skipped = [];
+  Object.values(byShop).forEach(s=>{
+    const key = s.name+"|"+s.ch;
+    if(existingKeys.has(key)){ skipped.push(s.name); return; }
+    if(!s.budget && !s.leads) return;
+    const buyoutPct = Math.round((typeof repGetBuyout==="function" ? repGetBuyout(key) : 67));
+    w.sources.push({id:nid(), name:s.name, ch:s.ch, buyout:buyoutPct, camps:[
+      {id:nid(), name:"З звітів", leads:Math.round(s.leads), orders:Math.round(s.approved), budget:Math.round(s.budget), margin:Math.round(s.marginPotential)}
+    ]});
+    added.push(s.name);
+  });
+  save(); renderWeek();
+  let msg = "";
+  if(added.length) msg += "Додано з реальними цифрами за тиждень: "+added.join(", ")+".\n";
+  if(skipped.length) msg += "Вже були в цьому тижні (не торкався, щоб не затерти): "+skipped.join(", ")+".";
+  if(!added.length && !skipped.length) msg = "Немає даних зі \"Звітів по магазинах\" за цей тиждень ("+w.start+" — "+w.end+"). Перевір чи завантажені джерела там.";
+  alert(msg);
+}
 function ds(sid){const w=cw();if(!w)return;w.sources=w.sources.filter(s=>s.id!==sid);save();renderWeek();}
 
 const TIPS={
@@ -2354,7 +2390,9 @@ finSyncCustomCatsFromCloud();
 
   const dbRef = ref(db, "ads-tracker/weeks");
   let loaded = false;
+  let fbWeeksConnected = false;
   onValue(dbRef, (snap) => {
+    fbWeeksConnected = true;
     const val = snap.val();
     if (val && Array.isArray(val) && !loaded) {
       loaded = true;
@@ -2362,8 +2400,14 @@ finSyncCustomCatsFromCloud();
       cur = weeks[weeks.length-1].id;
       if(document.getElementById("app").style.display !== "none") render();
     }
-  });
-  window._fbSave = (data) => set(dbRef, data).catch(e => console.warn("FB error:", e));
+  }, (err) => { console.warn("Ads tracker FB read error:", err); });
+  window._fbSave = (data) => {
+    if(!fbWeeksConnected){
+      console.warn("Запис в хмару відкладено: ще не підтверджено підключення до Firebase (ads-tracker/weeks). Дані збережені локально, спробую знову пізніше.");
+      return Promise.resolve();
+    }
+    return set(dbRef, data).catch(e => console.warn("FB error:", e));
+  };
   const st = document.getElementById("fb-status");
   if(st) { st.innerHTML = '<span class="fb-badge" style="background:#E6F5EE;color:#0E7C5A;border-color:#C3E8D8">🔄 Firebase</span>'; }
 
