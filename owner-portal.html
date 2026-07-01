@@ -1053,19 +1053,31 @@ function repParseNum(raw){
   return isNaN(n) ? 0 : n;
 }
 function repFindHeaderRow(rows){
-  for(let i=0;i<Math.min(rows.length,6);i++){
-    if(rows[i] && String(rows[i][0]).trim()==="Дата") return i;
+  const norm = s => String(s===undefined||s===null?"":s).replace(/^\uFEFF/,"").trim().toLowerCase();
+  for(let i=0;i<Math.min(rows.length,10);i++){
+    if(rows[i] && norm(rows[i][0])==="дата") return i;
   }
-  return 1; // запасний варіант
+  return 1; // запасний варіант — не знайшли рядок з "Дата" в перших 10 рядках
 }
 function repParseCsv(csvText, cfg){
   const parsed = Papa.parse(csvText.trim(), {skipEmptyLines:false});
   const rows = parsed.data;
   const hIdx = repFindHeaderRow(rows);
-  const headers = rows[hIdx].map(h=>String(h).trim());
+  const headers = (rows[hIdx]||[]).map(h=>String(h).trim());
   const col = name => headers.indexOf(name);
   const cBudget = col("Бюджет"), cLeads = col("Количество заявок"), cApprove = col("Апрув"),
         cMargin = col("Общая маржа, грн"), cNotCounted = col("Не враховуємо");
+  // діагностика: якщо заголовок не знайдено штатно (fallback) або бракує колонок — попереджаємо в консолі,
+  // щоб було видно причину нульових значень одразу, а не гадати
+  const gotHeaderNaturally = rows[hIdx] && String(rows[hIdx][0]).replace(/^\uFEFF/,"").trim().toLowerCase()==="дата";
+  if(!gotHeaderNaturally){
+    console.warn("[repParseCsv] "+cfg.name+" ("+cfg.month+"."+cfg.year+"): рядок 'Дата' не знайдено в перших 10 рядках, використано запасний варіант (рядок "+hIdx+"). Заголовки:", headers);
+  }
+  if(cBudget<0 || cLeads<0 || cApprove<0 || cMargin<0){
+    console.warn("[repParseCsv] "+cfg.name+" ("+cfg.month+"."+cfg.year+"): не знайдено колонку(и) — "+
+      [cBudget<0&&"Бюджет",cLeads<0&&"Количество заявок",cApprove<0&&"Апрув",cMargin<0&&"Общая маржа, грн"].filter(Boolean).join(", ")+
+      ". Рядок заголовку №"+hIdx+", вміст:", headers);
+  }
   const out = [];
   for(let i=hIdx+1;i<rows.length;i++){
     const r = rows[i];
@@ -1104,25 +1116,33 @@ async function repReload(){
 
   const results = await Promise.all(repSources.map(async (cfg) => {
     if(!cfg.sheetId || !cfg.gid) return [];
-    const isCurrentMonth = (cfg.year===curYear && cfg.month===curMonth);
+    // коерсимо в число: якщо month/year колись прийшли з конфігу як рядки ("7" замість 7),
+    // строге порівняння === нижче ламало визначення поточного місяця
+    const cfgYear = Number(cfg.year), cfgMonth = Number(cfg.month);
+    const isCurrentMonth = (cfgYear===curYear && cfgMonth===curMonth);
+    const archiveKey = cfg.id+"-"+cfgYear+"-"+cfgMonth; // ключ архіву прив'язаний і до місяця/року, не лише id джерела
 
     // минулі місяці спершу шукаємо в архіві Firebase — швидко і не залежить від Google Таблиці
     if(!isCurrentMonth && window._repArchiveGet){
-      const archived = await window._repArchiveGet(cfg.id);
+      const archived = await window._repArchiveGet(archiveKey);
       if(archived && archived.length){
         return repRowsFromArchive(archived);
       }
     }
 
     // поточний місяць — завжди наживо; минулий без архіву — тягнемо і одразу архівуємо
-    const url = "https://docs.google.com/spreadsheets/d/"+cfg.sheetId+"/export?format=csv&gid="+cfg.gid;
+    // (&_ts= — щоб уникнути кешування щойно зміненої Google Таблиці)
+    const url = "https://docs.google.com/spreadsheets/d/"+cfg.sheetId+"/export?format=csv&gid="+cfg.gid+"&_ts="+Date.now();
     try{
       const res = await fetch(url);
       if(!res.ok) throw new Error("HTTP "+res.status);
       const text = await res.text();
       const rows = repParseCsv(text, cfg);
+      if(!rows.length){
+        console.warn("[repReload] "+cfg.name+" ("+cfgMonth+"."+cfgYear+"): CSV завантажено, але 0 рядків з датою розпізнано — перевір формат колонки А (має бути текст 'дд.мм').");
+      }
       if(!isCurrentMonth && rows.length && window._repArchiveSave){
-        window._repArchiveSave(cfg.id, repRowsToArchive(rows));
+        window._repArchiveSave(archiveKey, repRowsToArchive(rows));
       }
       return rows;
     }catch(e){
