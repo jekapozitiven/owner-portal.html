@@ -1124,7 +1124,16 @@ async function repReload(){
 
     // минулі місяці спершу шукаємо в архіві Firebase — швидко і не залежить від Google Таблиці
     if(!isCurrentMonth && window._repArchiveGet){
-      const archived = await window._repArchiveGet(archiveKey);
+      let archived = await window._repArchiveGet(archiveKey);
+      if(!(archived && archived.length)){
+        // сумісність зі старим форматом ключа архіву (просто id, без місяця/року) — щоб нічого
+        // з уже закешованого раніше не "загубилось" через зміну формату ключа
+        const legacy = await window._repArchiveGet(cfg.id);
+        if(legacy && legacy.length){
+          archived = legacy;
+          if(window._repArchiveSave) window._repArchiveSave(archiveKey, legacy); // мігруємо на новий ключ
+        }
+      }
       if(archived && archived.length){
         return repRowsFromArchive(archived);
       }
