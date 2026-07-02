@@ -1158,42 +1158,58 @@ function repRowsFromArchive(rows){
   return rows.map(r=>({...r, date: new Date(r.date)}));
 }
 
+// стабільний архів "по магазину", а не по рядку джерела: ключ будується з назви+каналу+
+// РЕАЛЬНОГО місяця самих рядків (з дати в таблиці), а не з полів джерела month/year.
+// Завдяки цьому дані місяця не залежать від того, що потім станеться з рядком джерела
+// в "Джерелах" (навіть якщо його переналаштують на інший місяць — старий місяць не зникне).
+function repArchiveSlug(s){
+  return String(s==null?"":s).trim().replace(/[.#$\[\]\/]/g,"_");
+}
+function repArchiveKey(name, ch, year, month){
+  return repArchiveSlug(name)+"__"+repArchiveSlug(ch)+"__"+year+"-"+month;
+}
+async function repArchiveSaveGrouped(rows){
+  if(!rows.length) return;
+  const groups = {};
+  rows.forEach(r=>{
+    const k = repArchiveKey(r.name, r.ch, r.date.getFullYear(), r.date.getMonth()+1);
+    (groups[k] = groups[k] || []).push(r);
+  });
+  for(const key of Object.keys(groups)){
+    const path = "shop-reports/archive2/"+key;
+    let byDay = {};
+    try{
+      const existing = await fbRestGet(path);
+      if(Array.isArray(existing)) repRowsFromArchive(existing).forEach(r=>{ byDay[r.date.toISOString().slice(0,10)] = r; });
+    }catch(e){/* якщо архіву ще нема — не страшно, почнемо з нуля */}
+    groups[key].forEach(r=>{ byDay[r.date.toISOString().slice(0,10)] = r; });
+    const merged = Object.values(byDay).sort((a,b)=>a.date-b.date);
+    fbRestSet(path, repRowsToArchive(merged));
+  }
+}
+async function repArchiveRecoverMissingMonths(sources){
+  const tree = await fbRestGet("shop-reports/archive2");
+  if(!tree) return [];
+  // місяці, які прямо зараз тягнуться живцем з активного джерела — архів для них не потрібен
+  const covered = new Set(sources.map(cfg=>repArchiveKey(cfg.name, cfg.ch, Number(cfg.year), Number(cfg.month))));
+  let recovered = [];
+  Object.entries(tree).forEach(([key, arr])=>{
+    if(covered.has(key) || !Array.isArray(arr) || !arr.length) return;
+    recovered = recovered.concat(repRowsFromArchive(arr));
+  });
+  return recovered;
+}
+
 async function repReload(){
   if(repLoading) return;
   repLoading = true;
   const st = document.getElementById("rep-status");
   if(st) st.textContent = "Завантаження...";
   let errors = [];
-  const today = new Date();
-  const curYear = today.getFullYear(), curMonth = today.getMonth()+1;
 
   const results = await Promise.all(repSources.map(async (cfg) => {
     if(!cfg.sheetId || !cfg.gid) return [];
-    // коерсимо в число: якщо month/year колись прийшли з конфігу як рядки ("7" замість 7),
-    // строге порівняння === нижче ламало визначення поточного місяця
-    const cfgYear = Number(cfg.year), cfgMonth = Number(cfg.month);
-    const isCurrentMonth = (cfgYear===curYear && cfgMonth===curMonth);
-    const archiveKey = cfg.id+"-"+cfgYear+"-"+cfgMonth; // ключ архіву прив'язаний і до місяця/року, не лише id джерела
-
-    // минулі місяці спершу шукаємо в архіві Firebase — швидко і не залежить від Google Таблиці
-    if(!isCurrentMonth && window._repArchiveGet){
-      let archived = await window._repArchiveGet(archiveKey);
-      if(!(archived && archived.length)){
-        // сумісність зі старим форматом ключа архіву (просто id, без місяця/року) — щоб нічого
-        // з уже закешованого раніше не "загубилось" через зміну формату ключа
-        const legacy = await window._repArchiveGet(cfg.id);
-        if(legacy && legacy.length){
-          archived = legacy;
-          if(window._repArchiveSave) window._repArchiveSave(archiveKey, legacy); // мігруємо на новий ключ
-        }
-      }
-      if(archived && archived.length){
-        return repRowsFromArchive(archived);
-      }
-    }
-
-    // поточний місяць — завжди наживо; минулий без архіву — тягнемо і одразу архівуємо
-    // (&_ts= — щоб уникнути кешування щойно зміненої Google Таблиці)
+    // &_ts= — щоб уникнути кешування щойно зміненої Google Таблиці
     const url = "https://docs.google.com/spreadsheets/d/"+cfg.sheetId+"/export?format=csv&gid="+cfg.gid+"&_ts="+Date.now();
     try{
       const res = await fetch(url);
@@ -1201,10 +1217,9 @@ async function repReload(){
       const text = await res.text();
       const rows = repParseCsv(text, cfg);
       if(!rows.length){
-        console.warn("[repReload] "+cfg.name+" ("+cfgMonth+"."+cfgYear+"): CSV завантажено, але 0 рядків з датою розпізнано — перевір формат колонки А (має бути текст 'дд.мм').");
-      }
-      if(!isCurrentMonth && rows.length && window._repArchiveSave){
-        window._repArchiveSave(archiveKey, repRowsToArchive(rows));
+        console.warn("[repReload] "+cfg.name+" ("+cfg.month+"."+cfg.year+"): CSV завантажено, але 0 рядків з датою розпізнано — перевір формат колонки А (має бути текст 'дд.мм').");
+      }else{
+        repArchiveSaveGrouped(rows); // архівуємо КОЖЕН успішний фетч, завжди — не лише минулі місяці
       }
       return rows;
     }catch(e){
@@ -1214,7 +1229,9 @@ async function repReload(){
     }
   }));
 
-  repRows = results.flat();
+  const liveRows = results.flat();
+  const recovered = await repArchiveRecoverMissingMonths(repSources);
+  repRows = liveRows.concat(recovered);
   // ініціалізуємо вибір джерел якщо порожній
   if(repSelKeys.size===0){
     repSources.forEach(s=>repSelKeys.add(s.name+"|"+s.ch));
@@ -1227,6 +1244,7 @@ async function repReload(){
     finRenderAll();
   }
 }
+
 
 function repRenderPeriodPills(){
   const periods = [
