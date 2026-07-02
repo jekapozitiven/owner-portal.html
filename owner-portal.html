@@ -65,7 +65,14 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',-apple-system,sa
 .rep-chip{border:1px solid var(--border-4);background:var(--surface);color:var(--text-muted);padding:6px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;transition:.15s;}
 .rep-chip.on{background:var(--text);color:var(--bg);border-color:var(--text);}
 .btn-primary{background:var(--text)!important;color:var(--bg)!important;border-color:var(--text)!important;}
-.rep-src-card{background:var(--surface);border:1px solid var(--border-2);border-radius:14px;padding:16px 18px;margin-bottom:10px;}
+.rep-src-card{background:var(--surface);border:1px solid var(--border-2);border-radius:14px;padding:16px 18px;margin-bottom:10px;transition:opacity .15s;}
+.rep-src-card.dragging{opacity:.4;}
+.rep-drag-handle{cursor:grab;color:var(--text-faint);font-size:18px;line-height:1;user-select:none;padding:0 2px;}
+.rep-drag-handle:active{cursor:grabbing;}
+.rep-order-btns{display:inline-flex;flex-direction:column;gap:1px;}
+.rep-order-btn{background:0;border:1px solid var(--border-3);border-radius:4px;width:18px;height:14px;font-size:9px;line-height:1;cursor:pointer;color:var(--text-muted);padding:0;}
+.rep-order-btn:hover{border-color:var(--text-muted);color:var(--text);}
+.rep-order-btn:disabled{opacity:.25;cursor:default;}
 .rep-set-inp{background:var(--bg);border:1px solid var(--border-1);border-radius:6px;padding:5px 8px;font-size:12px;font-family:inherit;outline:none;width:100%;color:var(--text);}
 .rep-set-inp:focus{border-color:var(--text);background:var(--surface);}
 .wpill.on{background:var(--text);color:var(--bg);border-color:var(--text);}
@@ -889,6 +896,56 @@ let repSources = [];
 let repRows = [];          // всі рядки з усіх джерел, з повною датою
 let repSelKeys = new Set(); // обрані "name|ch"
 let repExpandedShops = new Set(); // розгорнуті по днях картки магазинів
+let repShopOrder = []; // ручний порядок карток магазинів (масив ключів "назва|канал")
+let repDragKey = null; // ключ картки, яку зараз тягнуть
+const REP_ORDER_LS_KEY = "bsrep:shopOrder";
+function repLoadShopOrder(){
+  const saved = LS.get(REP_ORDER_LS_KEY);
+  repShopOrder = Array.isArray(saved) ? saved : [];
+}
+function repSaveShopOrder(){
+  LS.set(REP_ORDER_LS_KEY, repShopOrder);
+  fbRestSet("shop-reports/shopOrder", repShopOrder);
+}
+async function repSyncShopOrderFromCloud(){
+  const val = await fbRestGet("shop-reports/shopOrder");
+  if(val && Array.isArray(val) && val.length){
+    repShopOrder = val;
+    LS.set(REP_ORDER_LS_KEY, repShopOrder);
+    if(document.getElementById("app-reports") && document.getElementById("app-reports").style.display !== "none"){
+      repRenderAll();
+    }
+  }
+}
+function repDragStart(e, key){
+  repDragKey = key;
+  e.dataTransfer.effectAllowed = "move";
+  e.currentTarget.classList.add("dragging");
+}
+function repDragEnd(e){
+  e.currentTarget.classList.remove("dragging");
+  repDragKey = null;
+}
+function repDropCard(e, targetKey){
+  e.preventDefault();
+  if(!repDragKey || repDragKey===targetKey) return;
+  const from = repShopOrder.indexOf(repDragKey);
+  const to = repShopOrder.indexOf(targetKey);
+  if(from<0 || to<0) return;
+  repShopOrder.splice(from,1);
+  repShopOrder.splice(to,0,repDragKey);
+  repDragKey = null;
+  repSaveShopOrder();
+  repRenderAll();
+}
+function repMoveShop(key, dir){
+  const i = repShopOrder.indexOf(key);
+  const j = i+dir;
+  if(i<0 || j<0 || j>=repShopOrder.length) return;
+  [repShopOrder[i], repShopOrder[j]] = [repShopOrder[j], repShopOrder[i]];
+  repSaveShopOrder();
+  repRenderAll();
+}
 let repTotalExpanded = false; // розгорнута загальна таблиця по днях (усі джерела разом)
 function repToggleExpand(key){
   repExpandedShops.has(key) ? repExpandedShops.delete(key) : repExpandedShops.add(key);
@@ -1417,7 +1474,10 @@ function repRenderAll(){
     const returnCostUnit = repGetReturnCost(key);
     const m = repCalcShop(shopRows, buyoutPct, kcPct, returnCostUnit);
     return {key, name:shopRows[0].name, ch:shopRows[0].ch, days:shopRows, ...m};
-  }).sort((a,b)=>b.net-a.net);
+  });
+  // ручний порядок карток: нові магазини (яких ще нема у збереженому порядку) додаємо в кінець
+  shopList.forEach(s=>{ if(!repShopOrder.includes(s.key)) repShopOrder.push(s.key); });
+  shopList.sort((a,b)=>repShopOrder.indexOf(a.key)-repShopOrder.indexOf(b.key));
 
   // тотал = сума вже розрахованих по-магазинних метрик
   const T = shopList.reduce((a,s)=>({budget:a.budget+s.budget,leads:a.leads+s.leads,
@@ -1449,9 +1509,16 @@ function repRenderAll(){
   document.getElementById("rep-total-toggle-btn").textContent = repTotalExpanded ? "▴ Згорнути" : "📅 Деталі по днях (усі джерела)";
   document.getElementById("rep-total-days").innerHTML = repTotalExpanded ? repRenderTotalDaysTable(rows) : "";
 
-  document.getElementById("rep-sources").innerHTML = shopList.map(s=>`
-    <div class="rep-src-card">
+  document.getElementById("rep-sources").innerHTML = shopList.map((s,i)=>`
+    <div class="rep-src-card" draggable="true" data-key="${s.key}"
+      ondragstart="repDragStart(event,'${s.key}')" ondragend="repDragEnd(event)"
+      ondragover="event.preventDefault()" ondrop="repDropCard(event,'${s.key}')">
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+        <span class="rep-drag-handle" title="Перетягни, щоб змінити порядок">⠿</span>
+        <span class="rep-order-btns">
+          <button type="button" class="rep-order-btn" title="Вище" ${i===0?'disabled':''} onclick="repMoveShop('${s.key}',-1)">▲</button>
+          <button type="button" class="rep-order-btn" title="Нижче" ${i===shopList.length-1?'disabled':''} onclick="repMoveShop('${s.key}',1)">▼</button>
+        </span>
         <span style="font-weight:700;font-size:15px">${s.name}</span>
         <span class="ch-btn ch-${s.ch==='Google'?'g':'p'}">${s.ch}</span>
         <div class="buyout-wrap">Викуп<input type="number" value="${s.buyoutPct}" min="0" max="100"
@@ -1722,6 +1789,8 @@ repLoadParams();
 repSyncParamsFromCloud();
 if(!repSources.length) repLoadSourcesConfig();
 repSyncSourcesFromCloud();
+repLoadShopOrder();
+repSyncShopOrderFromCloud();
 prepayLoad();
 prepaySyncFromCloud();
 
