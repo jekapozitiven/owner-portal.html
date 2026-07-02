@@ -100,8 +100,8 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',-apple-system,sa
 .src-name{background:0;border:0;color:var(--text);font-size:15px;font-weight:700;outline:none;font-family:inherit;width:160px;}
 .ch-btn{font-size:10px;font-weight:700;padding:3px 9px;border-radius:6px;border:0;cursor:pointer;}
 .ch-g{background:#E8F0FE;color:#1F6FEB;} .ch-p{background:#F3E8FE;color:#7C3AED;}
-.buyout-wrap{display:flex;align-items:center;gap:4px;background:var(--bg);border:1px solid var(--border-1);border-radius:7px;padding:4px 8px;font-size:12px;color:var(--text-muted);}
-.buyout-wrap input{background:0;border:0;color:var(--text);width:44px;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;outline:none;text-align:right;}
+.buyout-wrap{display:flex;align-items:center;gap:4px;background:var(--bg);border:1px solid var(--border-1);border-radius:7px;padding:4px 8px;font-size:12px;color:var(--text-muted);cursor:text;}
+.buyout-wrap input{background:0;border:0;color:var(--text);width:44px;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;outline:none;text-align:right;cursor:text;}
 .src-meta-row{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--text-muted);}
 .src-meta-row b{color:var(--text);font-family:'JetBrains Mono',monospace;font-weight:600;}
 .src-result{margin-left:auto;text-align:right;}
@@ -729,7 +729,7 @@ function renderWeek(){
     d.innerHTML=`<div class="src-head">
       <input class="src-name" value="${s.name}" onchange="ss(${s.id},'name',this.value)">
       <button class="ch-btn ch-${s.ch==="Google"?"g":"p"}" onclick="tch(${s.id})">${s.ch}</button>
-      <div class="buyout-wrap">Викуп<input type="number" value="${s.buyout}" min="0" max="100"
+      <div class="buyout-wrap" onclick="this.querySelector('input').focus()">Викуп<input type="number" value="${s.buyout}" min="0" max="100" onfocus="this.select()"
         onblur="ss(${s.id},'buyout',this.value)"
         onkeydown="if(event.key==='Enter'){ss(${s.id},'buyout',this.value);this.blur();}">%</div>
       <div class="src-meta-row">
@@ -947,8 +947,13 @@ function repToggleExpand(key){
   repExpandedShops.has(key) ? repExpandedShops.delete(key) : repExpandedShops.add(key);
   repRenderAll();
 }
-let repPeriod = "month";    // today | 7d | month | all | custom
-let repCustomStart = null, repCustomEnd = null;
+const REP_PERIOD_LS_KEY = "bsrep:period";
+const REP_PERIOD_SAVED = LS.get(REP_PERIOD_LS_KEY) || {};
+let repPeriod = REP_PERIOD_SAVED.period || "month";    // today | 7d | month | prevMonth | quarter | all | custom
+let repCustomStart = REP_PERIOD_SAVED.start || null, repCustomEnd = REP_PERIOD_SAVED.end || null;
+function repSavePeriod(){
+  LS.set(REP_PERIOD_LS_KEY, {period:repPeriod, start:repCustomStart, end:repCustomEnd});
+}
 let repLoading = false;
 
 function repLoadSourcesConfig(){
@@ -1291,15 +1296,21 @@ function repRenderPeriodPills(){
     `<button class="wpill${repPeriod===p.k?" on":""}" onclick="repSetPeriod('${p.k}')">${p.label}</button>`
   ).join("");
   document.getElementById("rep-custom-row").style.display = repPeriod==="custom" ? "" : "none";
+  if(repPeriod==="custom"){
+    if(repCustomStart) document.getElementById("rep-ds").value = repCustomStart;
+    if(repCustomEnd) document.getElementById("rep-de").value = repCustomEnd;
+  }
 }
 function repSetPeriod(p){
   repPeriod = p;
+  repSavePeriod();
   repRenderPeriodPills();
   repRenderAll();
 }
 function repSetCustomDate(){
   repCustomStart = document.getElementById("rep-ds").value || null;
   repCustomEnd = document.getElementById("rep-de").value || null;
+  repSavePeriod();
   repRenderAll();
 }
 function repGetDateRange(){
@@ -1590,13 +1601,13 @@ function repRenderAll(){
         <span style="font-weight:700;font-size:15px">${s.name}</span>
         <span class="ch-btn ch-${s.ch==='Google'?'g':'p'}">${s.ch}</span>
         <span style="font-size:10.5px;color:var(--text-faint)" title="Параметри нижче стосуються лише цього місяця">параметри за ${String(refM.month).padStart(2,'0')}.${refM.year}</span>
-        <div class="buyout-wrap">Викуп<input type="number" value="${s.buyoutPct}" min="0" max="100"
+        <div class="buyout-wrap" onclick="this.querySelector('input').focus()">Викуп<input type="number" value="${s.buyoutPct}" min="0" max="100" onfocus="this.select()"
           onblur="repSetBuyout('${s.key}',${refM.year},${refM.month},this.value)"
           onkeydown="if(event.key==='Enter'){repSetBuyout('${s.key}',${refM.year},${refM.month},this.value);this.blur();}">%</div>
-        <div class="buyout-wrap">КЦ<input type="number" value="${s.kcPct}" min="0" max="100"
+        <div class="buyout-wrap" onclick="this.querySelector('input').focus()">КЦ<input type="number" value="${s.kcPct}" min="0" max="100" onfocus="this.select()"
           onblur="repSetKc('${s.key}',${refM.year},${refM.month},this.value)"
           onkeydown="if(event.key==='Enter'){repSetKc('${s.key}',${refM.year},${refM.month},this.value);this.blur();}">%</div>
-        <div class="buyout-wrap">Повернення<input type="number" value="${s.returnCostUnit}" min="0"
+        <div class="buyout-wrap" onclick="this.querySelector('input').focus()">Повернення<input type="number" value="${s.returnCostUnit}" min="0" onfocus="this.select()"
           onblur="repSetReturnCost('${s.key}',${refM.year},${refM.month},this.value)"
           onkeydown="if(event.key==='Enter'){repSetReturnCost('${s.key}',${refM.year},${refM.month},this.value);this.blur();}">₴</div>
         <div style="margin-left:auto;text-align:right">
