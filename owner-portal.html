@@ -1067,30 +1067,56 @@ function repForceSyncParams(){
     alert("Не вдалось зберегти в хмару: "+e.message+"\nПеревір правила доступу Firebase (Realtime Database → Rules).");
   });
 }
-function repGetBuyout(key){
-  return repParams.buyouts[key]!==undefined ? repParams.buyouts[key] : 65;
+// "опорний" місяць для карток у Звітах: коли переглядаєш "Минулий місяць" — редагування
+// стосується саме минулого місяця, а не поточного (і навпаки), щоб параметри не "перетікали"
+function repRefMonth(){
+  const today = new Date();
+  if(repPeriod==="prevMonth"){
+    const m = today.getMonth(); // 0-based
+    return m===0 ? {year:today.getFullYear()-1, month:12} : {year:today.getFullYear(), month:m};
+  }
+  return {year:today.getFullYear(), month:today.getMonth()+1};
 }
-function repSetBuyout(key, val){
+function repParamKey(key, year, month){ return key+"__"+year+"-"+month; }
+function repGetBuyout(key, year, month){
+  if(year===undefined){ const r=repRefMonth(); year=r.year; month=r.month; }
+  const pk = repParamKey(key, year, month);
+  if(repParams.buyouts[pk]!==undefined) return repParams.buyouts[pk];
+  if(repParams.buyouts[key]!==undefined) return repParams.buyouts[key]; // сумісність зі старим форматом (без місяця)
+  return 65;
+}
+function repSetBuyout(key, year, month, val){
+  const pk = repParamKey(key, year, month);
   const v = parseFloat(val);
-  repParams.buyouts[key] = isNaN(v) ? 65 : v;
+  repParams.buyouts[pk] = isNaN(v) ? 65 : v;
   repSaveParams();
   repRenderAll();
 }
-function repGetKc(key){
-  return repParams.kc[key]!==undefined ? repParams.kc[key] : 7;
+function repGetKc(key, year, month){
+  if(year===undefined){ const r=repRefMonth(); year=r.year; month=r.month; }
+  const pk = repParamKey(key, year, month);
+  if(repParams.kc[pk]!==undefined) return repParams.kc[pk];
+  if(repParams.kc[key]!==undefined) return repParams.kc[key];
+  return 7;
 }
-function repSetKc(key, val){
+function repSetKc(key, year, month, val){
+  const pk = repParamKey(key, year, month);
   const v = parseFloat(val);
-  repParams.kc[key] = isNaN(v) ? 7 : v;
+  repParams.kc[pk] = isNaN(v) ? 7 : v;
   repSaveParams();
   repRenderAll();
 }
-function repGetReturnCost(key){
-  return repParams.returnCost[key]!==undefined ? repParams.returnCost[key] : 100;
+function repGetReturnCost(key, year, month){
+  if(year===undefined){ const r=repRefMonth(); year=r.year; month=r.month; }
+  const pk = repParamKey(key, year, month);
+  if(repParams.returnCost[pk]!==undefined) return repParams.returnCost[pk];
+  if(repParams.returnCost[key]!==undefined) return repParams.returnCost[key];
+  return 100;
 }
-function repSetReturnCost(key, val){
+function repSetReturnCost(key, year, month, val){
+  const pk = repParamKey(key, year, month);
   const v = parseFloat(val);
-  repParams.returnCost[key] = isNaN(v) ? 100 : v;
+  repParams.returnCost[pk] = isNaN(v) ? 100 : v;
   repSaveParams();
   repRenderAll();
 }
@@ -1344,12 +1370,35 @@ function repCalcMetrics(raw, buyoutPct, kcPct, returnCostUnit){
   };
 }
 // розрахунок повного набору метрик для масиву рядків одного магазину (сума за період)
-function repCalcShop(rows, buyoutPct, kcPct, returnCostUnit){
-  const raw = rows.reduce((a,r)=>({budget:a.budget+r.budget,leads:a.leads+r.leads,
-    approved:a.approved+r.approved,marginPotential:a.marginPotential+r.marginPotential,
-    notCounted:a.notCounted+r.notCounted}),
-    {budget:0,leads:0,approved:0,marginPotential:0,notCounted:0});
-  return repCalcMetrics(raw, buyoutPct, kcPct, returnCostUnit);
+function repCalcShop(rows, key){
+  const byMonth = {};
+  rows.forEach(r=>{
+    const mk = r.date.getFullYear()+"-"+(r.date.getMonth()+1);
+    (byMonth[mk] = byMonth[mk] || []).push(r);
+  });
+  const sum = {budget:0,leads:0,approved:0,marginPotential:0,notCounted:0,
+    realMargin:0,picked:0,returns:0,returnCost:0,kc:0,costs:0,net:0};
+  Object.entries(byMonth).forEach(([mk, mRows])=>{
+    const [y,m] = mk.split("-").map(Number);
+    const raw = mRows.reduce((a,r)=>({budget:a.budget+r.budget,leads:a.leads+r.leads,
+      approved:a.approved+r.approved,marginPotential:a.marginPotential+r.marginPotential,
+      notCounted:a.notCounted+r.notCounted}),
+      {budget:0,leads:0,approved:0,marginPotential:0,notCounted:0});
+    const mm = repCalcMetrics(raw, repGetBuyout(key,y,m), repGetKc(key,y,m), repGetReturnCost(key,y,m));
+    Object.keys(sum).forEach(k=>sum[k]+=mm[k]||0);
+  });
+  const ref = repRefMonth();
+  return {
+    ...sum,
+    buyoutPct: repGetBuyout(key,ref.year,ref.month), kcPct: repGetKc(key,ref.year,ref.month), returnCostUnit: repGetReturnCost(key,ref.year,ref.month),
+    roas: sum.budget?sum.realMargin/sum.budget:0,
+    roi: sum.costs?sum.net/sum.costs:0,
+    cpl: sum.leads?sum.budget/sum.leads:0,
+    cpa: sum.approved?sum.budget/sum.approved:0,
+    approvalRate: sum.leads?sum.approved/sum.leads*100:0,
+    pctBudgetOfMargin: sum.realMargin?sum.budget/sum.realMargin*100:0,
+    pctSalaryOfProfit: sum.net?sum.kc/sum.net*100:0,
+  };
 }
 
 function repRenderDaysTableHtml(dayRows){
@@ -1420,7 +1469,8 @@ function repRenderDaysTable(s){
   const sorted = [...s.days].sort((a,b)=>a.date-b.date);
   const dayRows = sorted.map(r=>{
     const raw = {budget:r.budget,leads:r.leads,approved:r.approved,marginPotential:r.marginPotential,notCounted:r.notCounted};
-    const m = repCalcMetrics(raw, s.buyoutPct, s.kcPct, s.returnCostUnit);
+    const y = r.date.getFullYear(), mo = r.date.getMonth()+1;
+    const m = repCalcMetrics(raw, repGetBuyout(s.key,y,mo), repGetKc(s.key,y,mo), repGetReturnCost(s.key,y,mo));
     return {date:r.date, ...m};
   });
   return repRenderDaysTableHtml(dayRows);
@@ -1442,7 +1492,8 @@ function repCalcAllSourcesDayRows(rows){
       const raw = shopRows.reduce((a,r)=>({budget:a.budget+r.budget,leads:a.leads+r.leads,approved:a.approved+r.approved,
         marginPotential:a.marginPotential+r.marginPotential,notCounted:a.notCounted+r.notCounted}),
         {budget:0,leads:0,approved:0,marginPotential:0,notCounted:0});
-      const m = repCalcMetrics(raw, repGetBuyout(key), repGetKc(key), repGetReturnCost(key));
+      const y = day.date.getFullYear(), mo = day.date.getMonth()+1;
+      const m = repCalcMetrics(raw, repGetBuyout(key,y,mo), repGetKc(key,y,mo), repGetReturnCost(key,y,mo));
       Object.keys(sum).forEach(k=>sum[k]+=m[k]||0);
     });
     return {date:day.date, ...sum,
@@ -1487,10 +1538,7 @@ function repRenderAll(){
     byShopRows[k].push(r);
   });
   const shopList = Object.entries(byShopRows).map(([key,shopRows])=>{
-    const buyoutPct = repGetBuyout(key);
-    const kcPct = repGetKc(key);
-    const returnCostUnit = repGetReturnCost(key);
-    const m = repCalcShop(shopRows, buyoutPct, kcPct, returnCostUnit);
+    const m = repCalcShop(shopRows, key);
     return {key, name:shopRows[0].name, ch:shopRows[0].ch, days:shopRows, ...m};
   });
   // ручний порядок карток: нові магазини (яких ще нема у збереженому порядку) додаємо в кінець
@@ -1527,6 +1575,7 @@ function repRenderAll(){
   document.getElementById("rep-total-toggle-btn").textContent = repTotalExpanded ? "▴ Згорнути" : "📅 Деталі по днях (усі джерела)";
   document.getElementById("rep-total-days").innerHTML = repTotalExpanded ? repRenderTotalDaysTable(rows) : "";
 
+  const refM = repRefMonth();
   document.getElementById("rep-sources").innerHTML = shopList.map((s,i)=>`
     <div class="rep-src-card" draggable="true" data-key="${s.key}"
       ondragstart="repDragStart(event,'${s.key}')" ondragend="repDragEnd(event)"
@@ -1535,15 +1584,16 @@ function repRenderAll(){
         <span class="rep-drag-handle" title="Перетягни, щоб змінити порядок">⠿</span>
         <span style="font-weight:700;font-size:15px">${s.name}</span>
         <span class="ch-btn ch-${s.ch==='Google'?'g':'p'}">${s.ch}</span>
+        <span style="font-size:10.5px;color:var(--text-faint)" title="Параметри нижче стосуються лише цього місяця">параметри за ${String(refM.month).padStart(2,'0')}.${refM.year}</span>
         <div class="buyout-wrap">Викуп<input type="number" value="${s.buyoutPct}" min="0" max="100"
-          onblur="repSetBuyout('${s.key}',this.value)"
-          onkeydown="if(event.key==='Enter'){repSetBuyout('${s.key}',this.value);this.blur();}">%</div>
+          onblur="repSetBuyout('${s.key}',${refM.year},${refM.month},this.value)"
+          onkeydown="if(event.key==='Enter'){repSetBuyout('${s.key}',${refM.year},${refM.month},this.value);this.blur();}">%</div>
         <div class="buyout-wrap">КЦ<input type="number" value="${s.kcPct}" min="0" max="100"
-          onblur="repSetKc('${s.key}',this.value)"
-          onkeydown="if(event.key==='Enter'){repSetKc('${s.key}',this.value);this.blur();}">%</div>
+          onblur="repSetKc('${s.key}',${refM.year},${refM.month},this.value)"
+          onkeydown="if(event.key==='Enter'){repSetKc('${s.key}',${refM.year},${refM.month},this.value);this.blur();}">%</div>
         <div class="buyout-wrap">Повернення<input type="number" value="${s.returnCostUnit}" min="0"
-          onblur="repSetReturnCost('${s.key}',this.value)"
-          onkeydown="if(event.key==='Enter'){repSetReturnCost('${s.key}',this.value);this.blur();}">₴</div>
+          onblur="repSetReturnCost('${s.key}',${refM.year},${refM.month},this.value)"
+          onkeydown="if(event.key==='Enter'){repSetReturnCost('${s.key}',${refM.year},${refM.month},this.value);this.blur();}">₴</div>
         <div style="margin-left:auto;text-align:right">
           <div style="font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:700;color:${nc(s.net)}">${fmt(s.net)} ₴</div>
           <div style="font-size:11px;color:var(--text-muted)">ROAS <b style="color:${rc(s.roas)}">${fX(s.roas)}</b> · ROI <b style="color:${roic(s.roi)}">${fP(s.roi)}</b></div>
@@ -1574,9 +1624,10 @@ function repRenderAll(){
   const byDay = {};
   rows.forEach(r=>{
     const key = r.name+"|"+r.ch;
-    const b = repGetBuyout(key)/100;
-    const kcPctDay = repGetKc(key);
-    const returnCostDayUnit = repGetReturnCost(key);
+    const y = r.date.getFullYear(), mo = r.date.getMonth()+1;
+    const b = repGetBuyout(key,y,mo)/100;
+    const kcPctDay = repGetKc(key,y,mo);
+    const returnCostDayUnit = repGetReturnCost(key,y,mo);
     const realMarginDay = r.marginPotential*b;
     const pickedDay = r.approved*b;
     const returnsDay = r.approved-pickedDay;
@@ -2213,10 +2264,7 @@ function finGetMonthlyAdProfit(year, month){
   });
   let totalBudget=0, totalRealMargin=0, totalNet=0, totalLeads=0, totalApproved=0, totalKc=0, totalReturnCost=0;
   Object.entries(byShop).forEach(([key,shopRows])=>{
-    const buyoutPct = repGetBuyout(key);
-    const kcPct = repGetKc(key);
-    const returnCostUnit = repGetReturnCost(key);
-    const m = repCalcShop(shopRows, buyoutPct, kcPct, returnCostUnit);
+    const m = repCalcShop(shopRows, key);
     totalBudget+=m.budget; totalRealMargin+=m.realMargin; totalNet+=m.net;
     totalLeads+=m.leads; totalApproved+=m.approved; totalKc+=m.kc; totalReturnCost+=m.returnCost;
   });
