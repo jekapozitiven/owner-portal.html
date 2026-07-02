@@ -1067,15 +1067,20 @@ function repForceSyncParams(){
     alert("Не вдалось зберегти в хмару: "+e.message+"\nПеревір правила доступу Firebase (Realtime Database → Rules).");
   });
 }
-// "опорний" місяць для карток у Звітах: коли переглядаєш "Минулий місяць" — редагування
-// стосується саме минулого місяця, а не поточного (і навпаки), щоб параметри не "перетікали"
+// "опорний" місяць для карток у Звітах: визначаємо не з назви кнопки періоду, а з реального
+// видимого діапазону дат — так працює однаково і для "Минулий місяць", і для "Свій діапазон",
+// і для будь-якого іншого фільтра. Завдяки цьому редагування Викуп/КЦ/Повернення завжди
+// стосується саме того місяця, який зараз показаний на екрані.
 function repRefMonth(){
-  const today = new Date();
-  if(repPeriod==="prevMonth"){
-    const m = today.getMonth(); // 0-based
-    return m===0 ? {year:today.getFullYear()-1, month:12} : {year:today.getFullYear(), month:m};
+  const [s,e] = repGetDateRange();
+  const today = new Date(); today.setHours(0,0,0,0);
+  let ref = today;
+  if(s && e){
+    if(today>=s && today<=e) ref = today;   // сьогодні всередині діапазону — редагуємо поточний місяць
+    else if(e < today) ref = e;             // діапазон повністю в минулому — редагуємо його останній місяць
+    else ref = s;                           // діапазон у майбутньому — беремо перший місяць діапазону
   }
-  return {year:today.getFullYear(), month:today.getMonth()+1};
+  return {year: ref.getFullYear(), month: ref.getMonth()+1};
 }
 function repParamKey(key, year, month){ return key+"__"+year+"-"+month; }
 function repGetBuyout(key, year, month){
