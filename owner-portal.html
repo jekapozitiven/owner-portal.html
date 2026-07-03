@@ -474,6 +474,9 @@ input[type=number]{-moz-appearance:textfield;}
     <div style="font-size:13px;font-weight:700;margin:22px 0 12px">Операційні витрати по категоріях</div>
     <div class="fin-cat-grid" id="fin-categories"></div>
 
+    <div style="font-size:13px;font-weight:700;margin:22px 0 12px">💰 Зарплати — все виплачене</div>
+    <div class="sb" style="padding:20px" id="fin-salary"></div>
+
     <div class="sb" style="padding:20px;margin-top:14px" id="fin-trend-card" style="display:none">
       <div style="font-size:13px;font-weight:700;margin-bottom:16px">📈 Чистий прибуток компанії по місяцях</div>
       <div id="fin-trend"></div>
@@ -1705,6 +1708,22 @@ function upsellFilteredOrders(){
     return true;
   });
 }
+// комісія менеджерів за забрані (успішні) допродажі — окремо від Reports/Звітів,
+// прив'язана саме до календарного місяця (для Фінансів), а не до вибраного періоду
+const FIN_UPSELL_COMMISSION_RATE = 0.20; // 20% кожному менеджеру з отриманої суми
+function upsellStatsForMonth(year, month){
+  const byManager = {};
+  let totalReceived = 0;
+  upsellOrders.forEach(o=>{
+    if(o.status!=="received") return;
+    const d = upsellParseDate(o.date);
+    if(!d || d.getFullYear()!==year || d.getMonth()+1!==month) return;
+    const amt = parseFloat(o.amount)||0;
+    totalReceived += amt;
+    byManager[o.manager] = (byManager[o.manager]||0) + amt;
+  });
+  return {totalReceived, byManager, commission: totalReceived*FIN_UPSELL_COMMISSION_RATE};
+}
 // ── Передоплати (вручну, зберігаються в Firebase shop-reports/prepayments) ──
 let prepayData = {}; // "YYYY-MM-DD" -> {prom, fop}
 function prepayLoad(){
@@ -2321,14 +2340,15 @@ function finMetricsForMonth(year, month){
   const mk = year+"-"+month;
   const ad = finGetMonthlyAdProfit(year, month);
   const expTotal = finTotal(finDataByMonth[mk] || {items:[]});
-  const finalNet = ad.adProfit - expTotal;
+  const upsellCommission = upsellStatsForMonth(year, month).commission;
+  const finalNet = ad.adProfit - expTotal - upsellCommission;
   const roas = ad.budget ? ad.realMargin/ad.budget : 0;
   const adCosts = ad.realMargin - ad.adProfit;
   const roiAds = adCosts ? ad.adProfit/adCosts : 0;
-  const totalCosts = adCosts + expTotal;
+  const totalCosts = adCosts + expTotal + upsellCommission;
   const roi = totalCosts ? finalNet/totalCosts : 0;
   const rentability = ad.realMargin ? finalNet/ad.realMargin : 0;
-  return {realMargin:ad.realMargin, adProfit:ad.adProfit, expTotal, finalNet, roas, roiAds, roi, rentability};
+  return {realMargin:ad.realMargin, adProfit:ad.adProfit, expTotal, upsellCommission, finalNet, roas, roiAds, roi, rentability};
 }
 function finRenderComparison(){
   const tEl = document.getElementById("fin-compare-table");
@@ -2371,6 +2391,36 @@ function finRenderComparison(){
   `;
 }
 
+// окремий блок "Зарплати": фіксовані виплати (вручну, категорія "salary" з Витрат)
+// + автоматична комісія менеджерам за забрані допродажі. Це лише інформаційний розріз —
+// сама комісія вже врахована один раз у "Чистий прибуток", тут її НЕ додають повторно
+// до операційних витрат/діаграми.
+function finRenderSalarySection(salaryCat, upsell){
+  const el = document.getElementById("fin-salary");
+  if(!el) return;
+  const manualItems = (salaryCat && salaryCat.items) ? salaryCat.items : [];
+  const manualTotal = manualItems.reduce((a,it)=>a+(parseFloat(it.amount)||0),0);
+  const mgrList = Object.entries(upsell.byManager)
+    .map(([name,amt])=>({name, received:amt, commission:amt*FIN_UPSELL_COMMISSION_RATE}))
+    .sort((a,b)=>b.commission-a.commission);
+  const grandTotal = manualTotal + upsell.commission;
+  el.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px">
+      <span style="font-size:12px;color:var(--text-muted)">Разом виплачено за місяць</span>
+      <span style="font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:700">${fmt(grandTotal)} ₴</span>
+    </div>
+    ${manualItems.length ? `
+      <div style="font-size:11.5px;font-weight:700;color:var(--text-muted);margin-bottom:4px">Фіксовані виплати (стаття "Зарплати команди" з Витрат)</div>
+      ${manualItems.map(it=>`<div class="fin-cat-item"><span>${it.name}</span><b>${fmt(parseFloat(it.amount)||0)} ₴</b></div>`).join("")}
+      <div class="fin-cat-item" style="border-top:2px solid var(--border-2);font-weight:700"><span>Разом фіксовані</span><b>${fmt(manualTotal)} ₴</b></div>
+    ` : '<p class="hint">Фіксованих виплат за цей місяць немає.</p>'}
+    <div style="font-size:11.5px;font-weight:700;color:var(--text-muted);margin:16px 0 4px">Комісія за допродажі — ${Math.round(FIN_UPSELL_COMMISSION_RATE*100)}% від забраних (успішних)</div>
+    ${mgrList.length ? mgrList.map(m=>`<div class="fin-cat-item"><span>${m.name} <span style="color:var(--text-faint)">(${fmt(m.received)} ₴ забрано)</span></span><b>${fmt(m.commission)} ₴</b></div>`).join("")
+      + `<div class="fin-cat-item" style="border-top:2px solid var(--border-2);font-weight:700"><span>Разом комісія</span><b>${fmt(upsell.commission)} ₴</b></div>`
+      : '<p class="hint">Забраних допродажів за цей місяць немає.</p>'}
+  `;
+}
+
 function finRenderAll(){
   if(finActiveTab==="compare") finRenderComparison();
   const mk = finCurYear+"-"+finCurMonth;
@@ -2384,18 +2434,21 @@ function finRenderAll(){
   const expData = finDataByMonth[mk] || {items:[]};
   const expTotal = finTotal(expData);
   const ad = finGetMonthlyAdProfit(finCurYear, finCurMonth);
-  const finalNet = ad.adProfit - expTotal;
+  const upsell = upsellStatsForMonth(finCurYear, finCurMonth);
+  const upsellCommission = upsell.commission;
+  const finalNet = ad.adProfit - expTotal - upsellCommission;
   const rentability = ad.realMargin ? finalNet/ad.realMargin : 0;
   const roas = ad.budget ? ad.realMargin/ad.budget : 0;
   const adCosts = ad.realMargin - ad.adProfit; // бюджет+КЦ (повернення тепер лише в ручних витратах)
   const roiAds = adCosts ? ad.adProfit/adCosts : 0; // той самий ROI, що і в "Звітах" (без операційки)
-  const totalCosts = adCosts + expTotal;
+  const totalCosts = adCosts + expTotal + upsellCommission;
   const roi = totalCosts ? finalNet/totalCosts : 0;
 
   document.getElementById("fin-summary").innerHTML = `
     <div class="fin-sum-card"><div class="fin-sum-lbl">Маржа (реальна)</div><div class="fin-sum-val">${fmt(ad.realMargin)} ₴</div><div class="fin-sum-sub">з урах. викупу, зі "Звітів"</div></div>
     <div class="fin-sum-card"><div class="fin-sum-lbl">Прибуток від реклами</div><div class="fin-sum-val" style="color:${nc(ad.adProfit)}">${fmt(ad.adProfit)} ₴</div><div class="fin-sum-sub">маржа − бюджет − КЦ</div></div>
     <div class="fin-sum-card"><div class="fin-sum-lbl">Операційні витрати</div><div class="fin-sum-val" style="color:#C2453B">− ${fmt(expTotal)} ₴</div><div class="fin-sum-sub">${expData.items.length} статей</div></div>
+    <div class="fin-sum-card"><div class="fin-sum-lbl">ЗП за допродажі</div><div class="fin-sum-val" style="color:#C2453B">− ${fmt(upsellCommission)} ₴</div><div class="fin-sum-sub">20% · ${fmt(upsell.totalReceived)} ₴ забраних</div></div>
     <div class="fin-sum-card accent"><div class="fin-sum-lbl">Чистий прибуток компанії</div><div class="fin-sum-val">${fmt(finalNet)} ₴</div><div class="fin-sum-sub">рентабельність ${fP(rentability)}</div></div>
   `;
 
@@ -2407,6 +2460,8 @@ function finRenderAll(){
     <div class="fin-flow-step"><span>Прибуток від реклами</span><span style="color:${nc(ad.adProfit)}">${fmt(ad.adProfit)} ₴</span></div>
     <div class="fin-flow-op">−</div>
     <div class="fin-flow-step"><span>Операційні витрати</span><span style="color:#C2453B">${fmt(expTotal)} ₴</span></div>
+    <div class="fin-flow-op">−</div>
+    <div class="fin-flow-step"><span>ЗП за допродажі</span><span style="color:#C2453B">${fmt(upsellCommission)} ₴</span></div>
     <div class="fin-flow-op">=</div>
     <div class="fin-flow-step"><span>Чистий прибуток</span><span style="color:${nc(finalNet)};font-size:19px">${fmt(finalNet)} ₴</span></div>
   `;
@@ -2431,6 +2486,8 @@ function finRenderAll(){
   });
   const catList = Object.values(byCat).filter(c=>c.items.length>0).sort((a,b)=>b.total-a.total);
   const maxCat = Math.max(1,...catList.map(c=>c.total));
+
+  finRenderSalarySection(byCat.salary, upsell);
 
   // окремі "рекламні" суми (бюджет, КЦ) — це не статті ручних витрат, а вже пораховані
   // підсумки зі "Звітів", тому додаємо їх у діаграму окремими сегментами, щоб бачити всю
@@ -2595,6 +2652,9 @@ finSyncCustomCatsFromCloud();
     upsellOrders = snap.docs.map(d => d.data());
     if(document.getElementById("app-reports") && document.getElementById("app-reports").style.display !== "none" && repActiveTab==="stats"){
       renderUpsellStats();
+    }
+    if(document.getElementById("app-finance") && document.getElementById("app-finance").style.display !== "none"){
+      finRenderAll();
     }
   }, (err) => console.warn("Upsell Firestore error:", err));
 
