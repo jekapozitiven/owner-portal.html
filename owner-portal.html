@@ -889,7 +889,14 @@ const REP_DEFAULT_SOURCES = [
 ];
 
 let repSources = [];
+const REP_ROWS_CACHE_KEY = "bsrep:lastRows";
 let repRows = [];          // всі рядки з усіх джерел, з повною датою
+(function repLoadCachedRows(){
+  try{
+    const cached = LS.get(REP_ROWS_CACHE_KEY);
+    if(cached && cached.length) repRows = repRowsFromArchive(cached);
+  }catch(e){}
+})();
 let repSelKeys = new Set(); // обрані "name|ch"
 let repExpandedShops = new Set(); // розгорнуті по днях картки магазинів
 let repShopOrder = []; // ручний порядок карток магазинів (масив ключів "назва|канал")
@@ -987,8 +994,8 @@ function openReports(){
   const pd = document.getElementById("prepay-date");
   if(pd && !pd.value) pd.value = new Date().toISOString().slice(0,10);
   prepayRenderList();
-  if(repRows.length){ repRenderAll(); }
-  else { repReload(); }
+  if(repRows.length) repRenderAll(); // миттєвий рендер з кешу, поки свіжі дані тягнуться у фоні
+  if(!repLoading) repReload();
 }
 
 // гачок у спільну goHome — ховаємо також наш екран
@@ -1268,6 +1275,9 @@ async function repReload(){
   const liveRows = results.flat();
   const recovered = await repArchiveRecoverMissingMonths(repSources);
   repRows = liveRows.concat(recovered);
+  // кешуємо в localStorage — щоб наступного разу сторінка малювалась миттєво з останніх відомих
+  // цифр, поки свіжі дані тягнуться з мережі у фоні (замість порожнього екрана на кілька секунд)
+  try{ LS.set(REP_ROWS_CACHE_KEY, repRowsToArchive(repRows)); }catch(e){}
   // ініціалізуємо вибір джерел якщо порожній
   if(repSelKeys.size===0){
     repSources.forEach(s=>repSelKeys.add(s.name+"|"+s.ch));
@@ -1901,7 +1911,8 @@ const FIN_DEFAULT_SOURCES = [
   {id:1, year:2026, month:6, sheetId:"1PPQ2xC3eBeoDaVTeY1--5pVl_nN2hLACxn2moukz3GM", gid:"1836768932"},
 ];
 let finSources = [];
-let finDataByMonth = {}; // "2026-6" -> {items:[{name,note,amount,cat}]}
+const FIN_DATA_CACHE_KEY = "bsfin:lastData";
+let finDataByMonth = (LS.get(FIN_DATA_CACHE_KEY)) || {}; // "2026-6" -> {items:[{name,note,amount,cat}]}
 let finCurYear = null, finCurMonth = null;
 const FIN_MONTH_LS_KEY = "bsfin:curMonth";
 function finSaveCurMonth(){
@@ -2010,9 +2021,11 @@ function openFinance(){
   }
   finRenderSettingsTable();
   finSwitchTab(finActiveTab);
-  // звіти (для прибутку від реклами) і власні витрати тягнемо ОДНОЧАСНО, не одне за одним
+  finRenderAll(); // миттєвий рендер з того, що вже є в пам'яті/кеші — без очікування мережі
+  // звіти (для прибутку від реклами) і власні витрати тягнемо ОДНОЧАСНО, не одне за одним,
+  // у фоні — цифри на екрані вже показані, тут лише тихо освіжаємо їх
   if(!repSources.length) repLoadSourcesConfig();
-  if(!repRows.length && !repLoading){ repReload(); }
+  if(!repLoading){ repReload(); }
   finReload();
 }
 
@@ -2212,6 +2225,7 @@ async function finReload(){
 
   finLoading = false;
   if(st) st.textContent = errors.length ? ("⚠ Не вдалось: "+errors.join(", ")) : ("Оновлено "+new Date().toLocaleTimeString("uk-UA"));
+  try{ LS.set(FIN_DATA_CACHE_KEY, finDataByMonth); }catch(e){}
   finRenderAll();
 }
 
@@ -2527,8 +2541,8 @@ function finRenderAll(){
       </div>
       <div class="fin-cat-bar"><div class="fin-cat-bar-fill" style="width:${c.total/maxCat*100}%;background:${c.color}"></div></div>
       <div class="fin-cat-items${finOpenCats.has(c.key)?' open':''}">
-        ${c.items.map(it=>`<div class="fin-cat-item" style="align-items:center">
-          <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${(it.name||'').replace(/</g,'&lt;')}</span>
+        ${c.items.map(it=>`<div class="fin-cat-item" style="align-items:flex-start">
+          <span style="flex:1;min-width:0" title="${(it.name||'').replace(/"/g,'&quot;').replace(/</g,'&lt;')}">${(it.name||'').replace(/</g,'&lt;')}</span>
           <b style="font-family:'JetBrains Mono',monospace;color:var(--text);white-space:nowrap">${fmt(it.amount)} ₴</b>
           ${it.synthetic
             ? `<span style="font-size:9.5px;color:var(--text-faint);border:1px solid var(--border-3);border-radius:5px;padding:1px 5px;white-space:nowrap">авто</span>`
