@@ -1887,6 +1887,10 @@ const FIN_DEFAULT_SOURCES = [
 let finSources = [];
 let finDataByMonth = {}; // "2026-6" -> {items:[{name,note,amount,cat}]}
 let finCurYear = null, finCurMonth = null;
+const FIN_MONTH_LS_KEY = "bsfin:curMonth";
+function finSaveCurMonth(){
+  if(finCurYear!==null && finCurMonth!==null) LS.set(FIN_MONTH_LS_KEY, {year:finCurYear, month:finCurMonth});
+}
 let finLoading = false;
 let finOpenCats = new Set();
 let finCustomCats = [];
@@ -1977,10 +1981,16 @@ function openFinance(){
   if(finCurYear===null){
     const today = new Date();
     const sorted = [...finSources].sort((a,b)=>(a.year*12+a.month)-(b.year*12+b.month));
-    const cur = sorted.find(s=>s.year===today.getFullYear() && s.month===today.getMonth()+1);
-    const pick = cur || sorted[sorted.length-1];
-    if(pick){ finCurYear=pick.year; finCurMonth=pick.month; }
-    else { finCurYear=today.getFullYear(); finCurMonth=today.getMonth()+1; }
+    const saved = LS.get(FIN_MONTH_LS_KEY);
+    const savedMatch = saved ? sorted.find(s=>s.year===saved.year && s.month===saved.month) : null;
+    if(savedMatch){
+      finCurYear = savedMatch.year; finCurMonth = savedMatch.month;
+    } else {
+      const cur = sorted.find(s=>s.year===today.getFullYear() && s.month===today.getMonth()+1);
+      const pick = cur || sorted[sorted.length-1];
+      if(pick){ finCurYear=pick.year; finCurMonth=pick.month; }
+      else { finCurYear=today.getFullYear(); finCurMonth=today.getMonth()+1; }
+    }
   }
   finRenderSettingsTable();
   finSwitchTab(finActiveTab);
@@ -2267,6 +2277,7 @@ function finShiftMonth(delta){
   if(newIdx>=sorted.length) newIdx=sorted.length-1;
   finCurYear = sorted[newIdx].year;
   finCurMonth = sorted[newIdx].month;
+  finSaveCurMonth();
   finRenderAll();
 }
 
