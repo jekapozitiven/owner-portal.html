@@ -2284,7 +2284,9 @@ function finGetMonthlyAdProfit(year, month){
     totalBudget+=m.budget; totalRealMargin+=m.realMargin; totalNet+=m.net;
     totalLeads+=m.leads; totalApproved+=m.approved; totalKc+=m.kc; totalReturnCost+=m.returnCost;
   });
-  return {budget:totalBudget, realMargin:totalRealMargin, adProfit:totalNet, leads:totalLeads, approved:totalApproved, kc:totalKc, returnCost:totalReturnCost, hasData: rows.length>0};
+  // adProfit навмисно НЕ віднімає returnCost: вартість відмов уже враховується вручну
+  // статтею "Логістика та повернення" в операційних витратах — щоб не віднімати її двічі
+  return {budget:totalBudget, realMargin:totalRealMargin, adProfit:totalNet+totalReturnCost, leads:totalLeads, approved:totalApproved, kc:totalKc, returnCost:totalReturnCost, hasData: rows.length>0};
 }
 
 function finToggleCat(key){
@@ -2374,14 +2376,14 @@ function finRenderAll(){
   const finalNet = ad.adProfit - expTotal;
   const rentability = ad.realMargin ? finalNet/ad.realMargin : 0;
   const roas = ad.budget ? ad.realMargin/ad.budget : 0;
-  const adCosts = ad.realMargin - ad.adProfit; // бюджет+КЦ+повернення
+  const adCosts = ad.realMargin - ad.adProfit; // бюджет+КЦ (повернення тепер лише в ручних витратах)
   const roiAds = adCosts ? ad.adProfit/adCosts : 0; // той самий ROI, що і в "Звітах" (без операційки)
   const totalCosts = adCosts + expTotal;
   const roi = totalCosts ? finalNet/totalCosts : 0;
 
   document.getElementById("fin-summary").innerHTML = `
     <div class="fin-sum-card"><div class="fin-sum-lbl">Маржа (реальна)</div><div class="fin-sum-val">${fmt(ad.realMargin)} ₴</div><div class="fin-sum-sub">з урах. викупу, зі "Звітів"</div></div>
-    <div class="fin-sum-card"><div class="fin-sum-lbl">Прибуток від реклами</div><div class="fin-sum-val" style="color:${nc(ad.adProfit)}">${fmt(ad.adProfit)} ₴</div><div class="fin-sum-sub">маржа − бюджет − КЦ − повернення</div></div>
+    <div class="fin-sum-card"><div class="fin-sum-lbl">Прибуток від реклами</div><div class="fin-sum-val" style="color:${nc(ad.adProfit)}">${fmt(ad.adProfit)} ₴</div><div class="fin-sum-sub">маржа − бюджет − КЦ</div></div>
     <div class="fin-sum-card"><div class="fin-sum-lbl">Операційні витрати</div><div class="fin-sum-val" style="color:#C2453B">− ${fmt(expTotal)} ₴</div><div class="fin-sum-sub">${expData.items.length} статей</div></div>
     <div class="fin-sum-card accent"><div class="fin-sum-lbl">Чистий прибуток компанії</div><div class="fin-sum-val">${fmt(finalNet)} ₴</div><div class="fin-sum-sub">рентабельність ${fP(rentability)}</div></div>
   `;
@@ -2389,7 +2391,7 @@ function finRenderAll(){
   document.getElementById("fin-flow").innerHTML = `
     <div class="fin-flow-step"><span>Маржа реальна</span><span>${fmt(ad.realMargin)} ₴</span></div>
     <div class="fin-flow-op">−</div>
-    <div class="fin-flow-step"><span>Реклама+КЦ+поверн.</span><span>${fmt(ad.realMargin-ad.adProfit)} ₴</span></div>
+    <div class="fin-flow-step"><span>Реклама+КЦ</span><span>${fmt(ad.realMargin-ad.adProfit)} ₴</span></div>
     <div class="fin-flow-op">=</div>
     <div class="fin-flow-step"><span>Прибуток від реклами</span><span style="color:${nc(ad.adProfit)}">${fmt(ad.adProfit)} ₴</span></div>
     <div class="fin-flow-op">−</div>
@@ -2419,16 +2421,16 @@ function finRenderAll(){
   const catList = Object.values(byCat).filter(c=>c.items.length>0).sort((a,b)=>b.total-a.total);
   const maxCat = Math.max(1,...catList.map(c=>c.total));
 
-  // окремі "рекламні" суми (бюджет, КЦ, оплата за відмови) — це не статті ручних витрат,
-  // а вже пораховані підсумки зі "Звітів", тому додаємо їх у діаграму окремими сегментами,
-  // щоб бачити всю картину витрат разом, а не лише операційку
+  // окремі "рекламні" суми (бюджет, КЦ) — це не статті ручних витрат, а вже пораховані
+  // підсумки зі "Звітів", тому додаємо їх у діаграму окремими сегментами, щоб бачити всю
+  // картину витрат разом, а не лише операційку. "Оплата за відмови" сюди навмисно НЕ входить —
+  // ця сума вже врахована вручну статтею "Логістика та повернення", щоб не рахувати її двічі
   const adSegDefs = [
     {key:"_adBudget", label:"Рекламний бюджет", icon:"📢", color:"#0EA5E9", total: ad.budget},
     {key:"_adKc", label:"КЦ (компенсації)", icon:"📞", color:"#DB2777", total: ad.kc},
-    {key:"_adReturns", label:"Оплата за відмови", icon:"↩️", color:"#CA8A04", total: ad.returnCost},
   ].filter(c=>c.total>0);
   const donutCatList = [...catList, ...adSegDefs].sort((a,b)=>b.total-a.total);
-  const donutTotal = expTotal + ad.budget + ad.kc + ad.returnCost;
+  const donutTotal = expTotal + ad.budget + ad.kc;
 
   // юніт-економіка: ціна заявки/апруву з опер. витрат компанії окремо, і разом з рекламним бюджетом
   const cplOps = ad.leads ? expTotal/ad.leads : 0;
