@@ -1880,10 +1880,13 @@ function renderUpsellStats(){
   const totalCount = filtered.length;
   const totalAmount = received.amount+refused.amount+inWork.amount;
   const convRate = (received.count+refused.count) ? received.count/(received.count+refused.count) : 0;
-  const pctOfApproved = repLastApproved ? totalCount/repLastApproved : 0;
+  // рахуємо апрув за поточний період прямо тут (синхронно), щоб % не залежав від того,
+  // чи встиг repRenderAll оновити спільну змінну — тому цифра з'являється одразу
+  const approvedNow = repFilteredRows().reduce((a,r)=>a+(r.approved||0),0);
+  const pctOfApproved = approvedNow ? totalCount/approvedNow : 0;
 
   kpisEl.innerHTML = `
-    <div class="kpi"><div class="kpi-lbl">Всього допродажів</div><div class="kpi-val">${fmt(totalCount)}</div><div class="kpi-sub">${fmt(totalAmount)} ₴ на суму · ${fP(pctOfApproved)} від апрув (${fmt(repLastApproved)})</div></div>
+    <div class="kpi"><div class="kpi-lbl">Всього допродажів</div><div class="kpi-val">${fmt(totalCount)}</div><div class="kpi-sub">${fmt(totalAmount)} ₴ на суму · <b style="color:#0E7C5A">${fP(pctOfApproved)}</b> від апрув (${fmt(approvedNow)})</div></div>
     <div class="kpi"><div class="kpi-lbl">Отримано (успішно)</div><div class="kpi-val" style="color:#0E7C5A">${fmt(received.amount)} ₴</div><div class="kpi-sub">${fmt(received.count)} шт.</div></div>
     <div class="kpi"><div class="kpi-lbl">В роботі</div><div class="kpi-val" style="color:#CA8A04">${fmt(inWork.amount)} ₴</div><div class="kpi-sub">${fmt(inWork.count)} шт. (нове/в дорозі)</div></div>
     <div class="kpi"><div class="kpi-lbl">Відмови</div><div class="kpi-val" style="color:#C2453B">${fmt(refused.amount)} ₴</div><div class="kpi-sub">${fmt(refused.count)} шт.</div></div>
