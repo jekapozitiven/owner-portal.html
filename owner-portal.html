@@ -1741,7 +1741,7 @@ function upsellFilteredOrders(){
 }
 // комісія менеджерів за забрані (успішні) допродажі — окремо від Reports/Звітів,
 // прив'язана саме до календарного місяця (для Фінансів), а не до вибраного періоду
-const FIN_UPSELL_COMMISSION_RATE = 0.20; // 20% кожному менеджеру з отриманої суми
+const FIN_UPSELL_COMMISSION_RATE = 0.20; // 20% менеджерам з прибутку забраних допродажів
 function upsellStatsForMonth(year, month){
   const byManager = {};
   let totalReceived = 0;
@@ -2353,14 +2353,25 @@ function finGetMonthlyAdProfit(year, month){
     byShop[k].push(r);
   });
   let totalBudget=0, totalRealMargin=0, totalNet=0, totalLeads=0, totalApproved=0, totalKc=0, totalReturnCost=0;
+  let avgKcRate=0, kcRateCount=0;
   Object.entries(byShop).forEach(([key,shopRows])=>{
     const m = repCalcShop(shopRows, key);
     totalBudget+=m.budget; totalRealMargin+=m.realMargin; totalNet+=m.net;
     totalLeads+=m.leads; totalApproved+=m.approved; totalKc+=m.kc; totalReturnCost+=m.returnCost;
+    if(m.realMargin>0){ avgKcRate += m.kc/m.realMargin; kcRateCount++; }
   });
+  // допродажі вже входять у "Маржа реальна" зі Звітів, але КЦ (5%) на них нараховувати НЕ треба —
+  // за допродажі платиться окремо 20%. Тому віднімаємо суму забраних допродажів з маржі
+  // і знімаємо ту частку КЦ, що була нарахована саме на неї (щоб не платити двічі).
+  const upsellReceived = upsellStatsForMonth(year, month).totalReceived;
+  const kcRate = kcRateCount ? avgKcRate/kcRateCount : 0; // середня ставка КЦ по магазинах
+  const kcOnUpsell = upsellReceived * kcRate;
+  totalRealMargin -= upsellReceived;
+  totalKc -= kcOnUpsell;
+  totalNet = totalNet - upsellReceived + kcOnUpsell; // net теж коригуємо: маржа впала, але й КЦ впав
   // adProfit навмисно НЕ віднімає returnCost: вартість відмов уже враховується вручну
   // статтею "Логістика та повернення" в операційних витратах — щоб не віднімати її двічі
-  return {budget:totalBudget, realMargin:totalRealMargin, adProfit:totalNet+totalReturnCost, leads:totalLeads, approved:totalApproved, kc:totalKc, returnCost:totalReturnCost, hasData: rows.length>0};
+  return {budget:totalBudget, realMargin:totalRealMargin, adProfit:totalNet+totalReturnCost, leads:totalLeads, approved:totalApproved, kc:totalKc, returnCost:totalReturnCost, upsellReceived, hasData: rows.length>0};
 }
 
 function finToggleCat(key){
@@ -2460,7 +2471,7 @@ function finRenderAll(){
   const roi = totalCosts ? finalNet/totalCosts : 0;
 
   document.getElementById("fin-summary").innerHTML = `
-    <div class="fin-sum-card"><div class="fin-sum-lbl">Маржа (реальна)</div><div class="fin-sum-val">${fmt(ad.realMargin)} ₴</div><div class="fin-sum-sub">з урах. викупу, зі "Звітів"</div></div>
+    <div class="fin-sum-card"><div class="fin-sum-lbl">Маржа (реальна)</div><div class="fin-sum-val">${fmt(ad.realMargin)} ₴</div><div class="fin-sum-sub">зі "Звітів", мінус ${fmt(ad.upsellReceived||0)} ₴ допродажів</div></div>
     <div class="fin-sum-card"><div class="fin-sum-lbl">Прибуток від реклами</div><div class="fin-sum-val" style="color:${nc(ad.adProfit)}">${fmt(ad.adProfit)} ₴</div><div class="fin-sum-sub">маржа − бюджет − КЦ</div></div>
     <div class="fin-sum-card"><div class="fin-sum-lbl">Операційні витрати</div><div class="fin-sum-val" style="color:#C2453B">− ${fmt(expTotal)} ₴</div><div class="fin-sum-sub">${expData.items.length} статей + 20% за допродажі</div></div>
     <div class="fin-sum-card accent"><div class="fin-sum-lbl">Чистий прибуток компанії</div><div class="fin-sum-val">${fmt(finalNet)} ₴</div><div class="fin-sum-sub">рентабельність ${fP(rentability)}</div></div>
@@ -2499,7 +2510,7 @@ function finRenderAll(){
   // комісія менеджерам за забрані допродажі (20%) — рахуємо автоматично і кладемо як окремий
   // рядок прямо в категорію "Зарплати команди", поруч зі всіма іншими виплатами
   if(upsell.commission>0){
-    byCat.salary.items.push({id:null, name:`Комісія за допродажі (${Math.round(FIN_UPSELL_COMMISSION_RATE*100)}% від ${fmt(upsell.totalReceived)} ₴ забраних)`, amount:upsell.commission, synthetic:true});
+    byCat.salary.items.push({id:null, name:`ЗП допродажі 20% (від ${fmt(upsell.totalReceived)} ₴ прибутку забраних)`, amount:upsell.commission, synthetic:true});
     byCat.salary.total += upsell.commission;
   }
   const catList = Object.values(byCat).filter(c=>c.items.length>0).sort((a,b)=>b.total-a.total);
