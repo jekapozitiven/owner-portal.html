@@ -1150,13 +1150,12 @@ function repGetReturnCost(key, year, month){
   if(year===undefined){ const r=repRefMonth(); year=r.year; month=r.month; }
   const pk = repParamKey(key, year, month);
   if(repParams.returnCost[pk]!==undefined) return repParams.returnCost[pk];
-  if(repParams.returnCost[key]!==undefined) return repParams.returnCost[key];
-  return 100;
+  return 0; // сума повернень за місяць; поки не введено — 0 (не плутати зі старою ціною за одну відмову)
 }
 function repSetReturnCost(key, year, month, val){
   const pk = repParamKey(key, year, month);
   const v = parseFloat(val);
-  repParams.returnCost[pk] = isNaN(v) ? 100 : v;
+  repParams.returnCost[pk] = isNaN(v) ? 0 : v;
   repSaveParams();
   repRenderAll();
 }
@@ -1398,17 +1397,17 @@ function repFilteredRows(){
 }
 
 // розрахунок метрик з вже підсумованих сирих даних (raw: budget/leads/approved/marginPotential/notCounted)
-function repCalcMetrics(raw, buyoutPct, kcPct, returnCostUnit){
+function repCalcMetrics(raw, buyoutPct, kcPct, returnTotal){
   const b = buyoutPct/100;
   const realMargin = raw.marginPotential*b;
   const picked = raw.approved*b;
   const returns = raw.approved-picked;
-  const returnCost = returns*returnCostUnit;
+  const returnCost = returnTotal; // тепер це готова СУМА повернень за місяць (вводиться вручну), а не к-сть×ціна
   const kc = realMargin*(kcPct/100);
   const costs = raw.budget+kc+returnCost;
   const net = realMargin-costs;
   return{
-    ...raw, buyoutPct, kcPct, returnCostUnit, realMargin, picked, returns, returnCost, kc, costs, net,
+    ...raw, buyoutPct, kcPct, returnTotal, realMargin, picked, returns, returnCost, kc, costs, net,
     roas: raw.budget?realMargin/raw.budget:0,
     roi: costs?net/costs:0,
     cpl: raw.leads?raw.budget/raw.leads:0,
@@ -1439,7 +1438,7 @@ function repCalcShop(rows, key){
   const ref = repRefMonth();
   return {
     ...sum,
-    buyoutPct: repGetBuyout(key,ref.year,ref.month), kcPct: repGetKc(key,ref.year,ref.month), returnCostUnit: repGetReturnCost(key,ref.year,ref.month),
+    buyoutPct: repGetBuyout(key,ref.year,ref.month), kcPct: repGetKc(key,ref.year,ref.month), returnTotal: repGetReturnCost(key,ref.year,ref.month),
     roas: sum.budget?sum.realMargin/sum.budget:0,
     roi: sum.costs?sum.net/sum.costs:0,
     cpl: sum.leads?sum.budget/sum.leads:0,
@@ -1519,7 +1518,9 @@ function repRenderDaysTable(s){
   const dayRows = sorted.map(r=>{
     const raw = {budget:r.budget,leads:r.leads,approved:r.approved,marginPotential:r.marginPotential,notCounted:r.notCounted};
     const y = r.date.getFullYear(), mo = r.date.getMonth()+1;
-    const m = repCalcMetrics(raw, repGetBuyout(s.key,y,mo), repGetKc(s.key,y,mo), repGetReturnCost(s.key,y,mo));
+    // сума повернень — місячна, тому в підневному розрізі не застосовуємо її (передаємо 0),
+    // інакше одна й та сама сума помножилась би на кожен день місяця
+    const m = repCalcMetrics(raw, repGetBuyout(s.key,y,mo), repGetKc(s.key,y,mo), 0);
     return {date:r.date, ...m};
   });
   return repRenderDaysTableHtml(dayRows);
@@ -1542,7 +1543,8 @@ function repCalcAllSourcesDayRows(rows){
         marginPotential:a.marginPotential+r.marginPotential,notCounted:a.notCounted+r.notCounted}),
         {budget:0,leads:0,approved:0,marginPotential:0,notCounted:0});
       const y = day.date.getFullYear(), mo = day.date.getMonth()+1;
-      const m = repCalcMetrics(raw, repGetBuyout(key,y,mo), repGetKc(key,y,mo), repGetReturnCost(key,y,mo));
+      // повернення — місячна сума, у підневному розрізі не застосовуємо (0)
+      const m = repCalcMetrics(raw, repGetBuyout(key,y,mo), repGetKc(key,y,mo), 0);
       Object.keys(sum).forEach(k=>sum[k]+=m[k]||0);
     });
     return {date:day.date, ...sum,
@@ -1641,7 +1643,7 @@ function repRenderAll(){
         <div class="buyout-wrap" onclick="this.querySelector('input').focus()">КЦ<input type="number" value="${s.kcPct}" min="0" max="100" onfocus="this.select()"
           onblur="repSetKc('${s.key}',${refM.year},${refM.month},this.value)"
           onkeydown="if(event.key==='Enter'){repSetKc('${s.key}',${refM.year},${refM.month},this.value);this.blur();}">%</div>
-        <div class="buyout-wrap" onclick="this.querySelector('input').focus()">Повернення<input type="number" value="${s.returnCostUnit}" min="0" onfocus="this.select()"
+        <div class="buyout-wrap" onclick="this.querySelector('input').focus()" title="Сума повернень за місяць — з CRM. Йде у витрати лише тут, у Звітах. У Фінанси НЕ передається.">Повернення/міс<input type="number" value="${s.returnTotal}" min="0" onfocus="this.select()"
           onblur="repSetReturnCost('${s.key}',${refM.year},${refM.month},this.value)"
           onkeydown="if(event.key==='Enter'){repSetReturnCost('${s.key}',${refM.year},${refM.month},this.value);this.blur();}">₴</div>
         <div style="margin-left:auto;text-align:right">
