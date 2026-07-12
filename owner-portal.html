@@ -2394,18 +2394,15 @@ function finGetMonthlyAdProfit(year, month){
     totalLeads+=m.leads; totalApproved+=m.approved; totalKc+=m.kc; totalReturnCost+=m.returnCost;
     if(m.realMargin>0){ avgKcRate += m.kc/m.realMargin; kcRateCount++; }
   });
-  // допродажі вже входять у "Маржа реальна" зі Звітів, але КЦ (5%) на них нараховувати НЕ треба —
-  // за допродажі платиться окремо 20%. Тому віднімаємо суму забраних допродажів з маржі
-  // і знімаємо ту частку КЦ, що була нарахована саме на неї (щоб не платити двічі).
+  // Маржа і прибуток показуються РІВНО як у Звітах (без прихованих коригувань).
+  // Питання "5% КЦ не має падати на допродажі" вирішується окремим рядком у витратах
+  // ("Повернення 5% КЦ за допродажі"), а не тут — так усе прозоро і нічого не задвоюється.
   const upsellReceived = upsellStatsForMonth(year, month).totalReceived;
   const kcRate = kcRateCount ? avgKcRate/kcRateCount : 0; // середня ставка КЦ по магазинах
-  const kcOnUpsell = upsellReceived * kcRate;
-  totalRealMargin -= upsellReceived;
-  totalKc -= kcOnUpsell;
-  totalNet = totalNet - upsellReceived + kcOnUpsell; // net теж коригуємо: маржа впала, але й КЦ впав
+  const kcOnUpsell = upsellReceived * kcRate; // скільки 5% КЦ зайво впало на допродажі — компенсуємо у витратах
   // adProfit навмисно НЕ віднімає returnCost: вартість відмов уже враховується вручну
   // статтею "Логістика та повернення" в операційних витратах — щоб не віднімати її двічі
-  return {budget:totalBudget, realMargin:totalRealMargin, adProfit:totalNet+totalReturnCost, leads:totalLeads, approved:totalApproved, kc:totalKc, returnCost:totalReturnCost, upsellReceived, hasData: rows.length>0};
+  return {budget:totalBudget, realMargin:totalRealMargin, adProfit:totalNet+totalReturnCost, leads:totalLeads, approved:totalApproved, kc:totalKc, returnCost:totalReturnCost, upsellReceived, kcOnUpsell, hasData: rows.length>0};
 }
 
 function finToggleCat(key){
@@ -2428,7 +2425,7 @@ function finSwitchTab(tab){
 function finMetricsForMonth(year, month){
   const mk = year+"-"+month;
   const ad = finGetMonthlyAdProfit(year, month);
-  const expTotal = finTotal(finDataByMonth[mk] || {items:[]}) + upsellStatsForMonth(year, month).commission;
+  const expTotal = finTotal(finDataByMonth[mk] || {items:[]}) + upsellStatsForMonth(year, month).commission - ad.kcOnUpsell;
   const finalNet = ad.adProfit - expTotal;
   const roas = ad.budget ? ad.realMargin/ad.budget : 0;
   const adCosts = ad.realMargin - ad.adProfit;
@@ -2494,8 +2491,10 @@ function finRenderAll(){
 
   const expData = finDataByMonth[mk] || {items:[]};
   const upsell = upsellStatsForMonth(finCurYear, finCurMonth);
-  const expTotal = finTotal(expData) + upsell.commission; // операційні витрати вже включають авто-комісію за допродажі
   const ad = finGetMonthlyAdProfit(finCurYear, finCurMonth);
+  // операційні витрати = ручні статті + 20% комісія за допродажі − компенсація зайвого 5% КЦ,
+  // що впав на допродажі (щоб за допродажі платилось лише 20%, а не 20%+5%)
+  const expTotal = finTotal(expData) + upsell.commission - ad.kcOnUpsell;
   const finalNet = ad.adProfit - expTotal;
   const rentability = ad.realMargin ? finalNet/ad.realMargin : 0;
   const roas = ad.budget ? ad.realMargin/ad.budget : 0;
@@ -2505,9 +2504,9 @@ function finRenderAll(){
   const roi = totalCosts ? finalNet/totalCosts : 0;
 
   document.getElementById("fin-summary").innerHTML = `
-    <div class="fin-sum-card"><div class="fin-sum-lbl">Маржа (реальна)</div><div class="fin-sum-val">${fmt(ad.realMargin)} ₴</div><div class="fin-sum-sub">зі "Звітів", мінус ${fmt(ad.upsellReceived||0)} ₴ допродажів</div></div>
+    <div class="fin-sum-card"><div class="fin-sum-lbl">Маржа (реальна)</div><div class="fin-sum-val">${fmt(ad.realMargin)} ₴</div><div class="fin-sum-sub">з урах. викупу, зі "Звітів"</div></div>
     <div class="fin-sum-card"><div class="fin-sum-lbl">Прибуток від реклами</div><div class="fin-sum-val" style="color:${nc(ad.adProfit)}">${fmt(ad.adProfit)} ₴</div><div class="fin-sum-sub">маржа − бюджет − КЦ</div></div>
-    <div class="fin-sum-card"><div class="fin-sum-lbl">Операційні витрати</div><div class="fin-sum-val" style="color:#C2453B">− ${fmt(expTotal)} ₴</div><div class="fin-sum-sub">${expData.items.length} статей + 20% за допродажі</div></div>
+    <div class="fin-sum-card"><div class="fin-sum-lbl">Операційні витрати</div><div class="fin-sum-val" style="color:#C2453B">− ${fmt(expTotal)} ₴</div><div class="fin-sum-sub">${expData.items.length} статей + 20% допродажі − 5% КЦ</div></div>
     <div class="fin-sum-card accent"><div class="fin-sum-lbl">Чистий прибуток компанії</div><div class="fin-sum-val">${fmt(finalNet)} ₴</div><div class="fin-sum-sub">рентабельність ${fP(rentability)}</div></div>
   `;
 
@@ -2546,6 +2545,11 @@ function finRenderAll(){
   if(upsell.commission>0){
     byCat.salary.items.push({id:null, name:`ЗП допродажі 20% (від ${fmt(upsell.totalReceived)} ₴ прибутку забраних)`, amount:upsell.commission, synthetic:true});
     byCat.salary.total += upsell.commission;
+  }
+  // компенсація: повертаємо зайвий 5% КЦ, що впав на допродажі у Звітах (щоб платити лише 20%)
+  if(ad.kcOnUpsell>0){
+    byCat.salary.items.push({id:null, name:`− Повернення 5% КЦ за допродажі (не платимо двічі)`, amount:-ad.kcOnUpsell, synthetic:true});
+    byCat.salary.total -= ad.kcOnUpsell;
   }
   const catList = Object.values(byCat).filter(c=>c.items.length>0).sort((a,b)=>b.total-a.total);
   const maxCat = Math.max(1,...catList.map(c=>c.total));
