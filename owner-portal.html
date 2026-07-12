@@ -1515,13 +1515,21 @@ function repRenderDaysTableHtml(dayRows){
 
 function repRenderDaysTable(s){
   const sorted = [...s.days].sort((a,b)=>a.date-b.date);
-  const dayRows = sorted.map(r=>{
+  // спершу рахуємо кожен день БЕЗ повернень, щоб дізнатись к-сть відмов по днях
+  const base = sorted.map(r=>{
     const raw = {budget:r.budget,leads:r.leads,approved:r.approved,marginPotential:r.marginPotential,notCounted:r.notCounted};
     const y = r.date.getFullYear(), mo = r.date.getMonth()+1;
-    // сума повернень — місячна, тому в підневному розрізі не застосовуємо її (передаємо 0),
-    // інакше одна й та сама сума помножилась би на кожен день місяця
     const m = repCalcMetrics(raw, repGetBuyout(s.key,y,mo), repGetKc(s.key,y,mo), 0);
     return {date:r.date, ...m};
+  });
+  // місячну суму повернень розкидаємо по днях пропорційно кількості відмов цього дня
+  const totalReturns = base.reduce((a,d)=>a+d.returns,0);
+  const monthReturnTotal = s.returnTotal || 0;
+  const dayRows = base.map(d=>{
+    const share = totalReturns>0 ? (d.returns/totalReturns)*monthReturnTotal : 0;
+    const costs = d.budget+d.kc+share;
+    const net = d.realMargin-costs;
+    return {...d, returnCost:share, costs, net, roi: costs?net/costs:0};
   });
   return repRenderDaysTableHtml(dayRows);
 }
@@ -1536,6 +1544,16 @@ function repCalcAllSourcesDayRows(rows){
     if(!byDate[dk].rowsByShop[key]) byDate[dk].rowsByShop[key] = [];
     byDate[dk].rowsByShop[key].push(r);
   });
+  // сума відмов по кожному магазину за весь період (щоб розкидати місячне повернення пропорційно)
+  const returnsByShop = {}, refMonthReturn = {};
+  rows.forEach(r=>{
+    const key = r.name+"|"+r.ch;
+    const y = r.date.getFullYear(), mo = r.date.getMonth()+1;
+    const raw = {budget:r.budget,leads:r.leads,approved:r.approved,marginPotential:r.marginPotential,notCounted:r.notCounted};
+    const m = repCalcMetrics(raw, repGetBuyout(key,y,mo), repGetKc(key,y,mo), 0);
+    returnsByShop[key] = (returnsByShop[key]||0) + m.returns;
+    if(refMonthReturn[key]===undefined) refMonthReturn[key] = repGetReturnCost(key,y,mo);
+  });
   return Object.values(byDate).map(day=>{
     let sum = {budget:0,leads:0,approved:0,marginPotential:0,notCounted:0,realMargin:0,picked:0,returns:0,returnCost:0,kc:0,costs:0,net:0};
     Object.entries(day.rowsByShop).forEach(([key,shopRows])=>{
@@ -1543,8 +1561,14 @@ function repCalcAllSourcesDayRows(rows){
         marginPotential:a.marginPotential+r.marginPotential,notCounted:a.notCounted+r.notCounted}),
         {budget:0,leads:0,approved:0,marginPotential:0,notCounted:0});
       const y = day.date.getFullYear(), mo = day.date.getMonth()+1;
-      // повернення — місячна сума, у підневному розрізі не застосовуємо (0)
       const m = repCalcMetrics(raw, repGetBuyout(key,y,mo), repGetKc(key,y,mo), 0);
+      // частка місячного повернення цього магазину, що припадає на відмови цього дня
+      const shopReturns = returnsByShop[key]||0;
+      const shopMonthReturn = refMonthReturn[key]||0;
+      const share = shopReturns>0 ? (m.returns/shopReturns)*shopMonthReturn : 0;
+      m.returnCost = share;
+      m.costs = m.budget+m.kc+share;
+      m.net = m.realMargin-m.costs;
       Object.keys(sum).forEach(k=>sum[k]+=m[k]||0);
     });
     return {date:day.date, ...sum,
@@ -1621,6 +1645,7 @@ function repRenderAll(){
     <div class="kpi"><div class="kpi-lbl"><span class="tip-label" data-tip="rep_margin">Маржа (реальна)</span></div><div class="kpi-val">${fmt(T.realMargin)} ₴</div><div class="kpi-sub">100% викуп: ${fmt(T.marginPotential)} ₴</div></div>
     <div class="kpi"><div class="kpi-lbl"><span class="tip-label" data-tip="net">Чистий прибуток</span></div><div class="kpi-val" style="color:${nc(T.net)}">${fmt(T.net)} ₴</div><div class="kpi-sub"><span class="tip-label" data-tip="roas">ROAS</span> <b style="color:${rc(roas)}">${fX(roas)}</b> · <span class="tip-label" data-tip="roi">ROI</span> <b style="color:${roic(roi)}">${fP(roi)}</b></div></div>
     <div class="kpi"><div class="kpi-lbl"><span class="tip-label" data-tip="rep_kcspent">Витрачено на КЦ</span></div><div class="kpi-val">${fmt(T.kc)} ₴</div></div>
+    <div class="kpi"><div class="kpi-lbl">Сума повернень</div><div class="kpi-val" style="color:#C2453B">${fmt(T.returnCost)} ₴</div><div class="kpi-sub">введено вручну по магазинах</div></div>
     <div class="kpi"><div class="kpi-lbl"><span class="tip-label" data-tip="rep_pctbudget">% бюджету від маржі</span></div><div class="kpi-val">${fP(pctBudgetOfMargin/100)}</div></div>
     <div class="kpi"><div class="kpi-lbl"><span class="tip-label" data-tip="rep_pctsalary">% ЗП від прибутку</span></div><div class="kpi-val">${fP(pctSalaryOfProfit/100)}</div></div>
   `;
@@ -1672,24 +1697,31 @@ function repRenderAll(){
     </div>
   `).join("") || '<p class="hint">Немає даних за обраний період і джерела.</p>';
 
-  // графік по днях — рахуємо чистий прибуток день-за-день з власним викуп%/КЦ%/повернення кожного магазину
-  const byDay = {};
+  // графік по днях — чистий прибуток день-за-день. Місячну суму повернень кожного магазину
+  // розкидаємо по днях пропорційно кількості відмов цього дня (так само, як у таблиці по днях).
+  const shopDayData = {}; // key -> [{dk, date, budget, realMargin, kc, returns}]
   rows.forEach(r=>{
     const key = r.name+"|"+r.ch;
     const y = r.date.getFullYear(), mo = r.date.getMonth()+1;
     const b = repGetBuyout(key,y,mo)/100;
     const kcPctDay = repGetKc(key,y,mo);
-    const returnCostDayUnit = repGetReturnCost(key,y,mo);
     const realMarginDay = r.marginPotential*b;
     const pickedDay = r.approved*b;
     const returnsDay = r.approved-pickedDay;
-    const returnCostDay = returnsDay*returnCostDayUnit;
     const kcDay = realMarginDay*(kcPctDay/100);
-    const costsDay = r.budget+kcDay+returnCostDay;
-    const netDay = realMarginDay-costsDay;
     const dk = r.date.toISOString().slice(0,10);
-    if(!byDay[dk]) byDay[dk] = {date:r.date,net:0};
-    byDay[dk].net += netDay;
+    if(!shopDayData[key]) shopDayData[key] = {monthReturn: repGetReturnCost(key,y,mo), totalReturns:0, days:[]};
+    shopDayData[key].totalReturns += returnsDay;
+    shopDayData[key].days.push({dk, date:r.date, budget:r.budget, realMargin:realMarginDay, kc:kcDay, returns:returnsDay});
+  });
+  const byDay = {};
+  Object.values(shopDayData).forEach(shop=>{
+    shop.days.forEach(d=>{
+      const share = shop.totalReturns>0 ? (d.returns/shop.totalReturns)*shop.monthReturn : 0;
+      const netDay = d.realMargin - (d.budget + d.kc + share);
+      if(!byDay[d.dk]) byDay[d.dk] = {date:d.date,net:0};
+      byDay[d.dk].net += netDay;
+    });
   });
   const days = Object.values(byDay).sort((a,b)=>a.date-b.date);
   const maxAbs = Math.max(1,...days.map(d=>Math.abs(d.net)));
